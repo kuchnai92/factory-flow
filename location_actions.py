@@ -7,6 +7,45 @@ def parse_qty(val):
     except (ValueError, TypeError): return None
 
 class LocationActionsMixin:
+    # --- NEW: Drag and Drop Action Handlers for Steps ---
+    def handle_step_swap(self, e):
+        src_control = self.page.get_control(e.src_id)
+        if not src_control: return
+        src_data = src_control.data
+        tgt_data = e.control.data
+        
+        if src_data == tgt_data: return
+        
+        item = self.get_item_by_id(src_data["item_id"])
+        if not item: return
+        
+        src_step_name = item["steps"][src_data["step_idx"]]
+        tgt_step_name = item["steps"][tgt_data["step_idx"]]
+        
+        self.pending_step_swap = (src_data["item_id"], src_data["step_idx"], tgt_data["step_idx"])
+        self.swap_confirm_text.value = f"{self.t('Are you sure you want to swap')} '{src_step_name}' {self.t('with')} '{tgt_step_name}'?"
+        self.page.open(self.swap_dialog)
+        self.page.update()
+
+    def execute_step_swap(self, e):
+        if not hasattr(self, 'pending_step_swap') or not self.pending_step_swap: return
+        item_id, src_idx, tgt_idx = self.pending_step_swap
+        
+        item = self.get_item_by_id(item_id)
+        if item:
+            item["steps"][src_idx], item["steps"][tgt_idx] = item["steps"][tgt_idx], item["steps"][src_idx]
+            
+            # Ensures the active step highlight tracks the move properly
+            if item["step_idx"] == src_idx:
+                item["step_idx"] = tgt_idx
+            elif item["step_idx"] == tgt_idx:
+                item["step_idx"] = src_idx
+                
+        self.pending_step_swap = None
+        self.page.close(self.swap_dialog)
+        self.render()
+
+    # --- REST OF YOUR CODE EXACTLY AS IS ---
     def revert_archived_batch(self, base_name):
         tab_data = self.get_current_data()["data"][self.get_current_data()["tabs"][self.get_current_data()["active_tab"]]]
         history = tab_data["history"]
@@ -159,7 +198,6 @@ class LocationActionsMixin:
         active_items_list.remove(item)
         self.page.close(self.merge_dialog); self.render()
 
-    # --- UPDATED: HANDLES FREE STOCK & PREVENTS OVERWRITING HISTORY ---
     def execute_add_qty(self, e):
         qty_str = self.add_qty_input.value.strip()
         try: qty = float(qty_str)
@@ -181,8 +219,6 @@ class LocationActionsMixin:
                 tab_data["stock"][item["type"]] -= qty
                 
             item["quantity"] += qty
-            
-            # NOTE: We DO NOT loop through item["timeline"] anymore. Previous historical steps remain unchanged!
             action_text = " (Free Stock)" if is_free_stock else " from stock"
             item["timeline"].append({"step": f"Added {qty:g} units{action_text}", "time": datetime.now().strftime("%Y-%m-%d %I:%M %p"), "qty": item["quantity"]})
         else:
@@ -195,8 +231,6 @@ class LocationActionsMixin:
                 tab_data["stock"][item["type"]] = tab_data["stock"].get(item["type"], 0) + remove_qty
                 
             item["quantity"] -= remove_qty
-            
-            # NOTE: We DO NOT loop through item["timeline"] anymore. Previous historical steps remain unchanged!
             action_text = " (Free/Discarded)" if is_free_stock else " to stock"
             item["timeline"].append({"step": f"Removed {remove_qty:g} units{action_text}", "time": datetime.now().strftime("%Y-%m-%d %I:%M %p"), "qty": item["quantity"]})
             
@@ -215,17 +249,14 @@ class LocationActionsMixin:
             self.show_snackbar(self.t("Cannot return more than batch has!"), True)
             return
             
-        # Add to raw stock
         tab_data["stock"][item["type"]] = tab_data["stock"].get(item["type"], 0) + qty
         
         if qty == item["quantity"]:
-            # fully removed
             active_items_list.remove(item)
             remaining = [b for b in active_items_list if b["type"] == item["type"]]
             if not remaining and self.active_product_filter == item["type"]: self.active_product_filter = None
             self.show_snackbar(self.t("Batch fully removed and restocked."))
         else:
-            # partially removed
             item["quantity"] -= qty
             for log in item["timeline"]: log["qty"] = item["quantity"]
             item["timeline"].append({"step": f"Returned {qty:g} units to stock", "time": datetime.now().strftime("%Y-%m-%d %I:%M %p"), "qty": item["quantity"]})

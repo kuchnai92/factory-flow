@@ -35,7 +35,6 @@ class LocationDialogsMixin:
         self.delete_l3_btn_confirm = ft.ElevatedButton(self.t("Delete"), on_click=self.execute_delete_l3, style=get_btn_style("#EF4444", "white"))
         self.delete_l3_confirm_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("Confirm Delete"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=ft.Text(self.t("Are you sure you want to delete this?"), size=s(14), font_family="Jameel Noori"), actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.delete_l3_confirm_dialog), style=ft.ButtonStyle(text_style=ts_base)), self.delete_l3_btn_confirm])
         
-        # --- DROPDOWNS SET TO LARGE & BOLD ---
         self.prod_dropdown = ft.Dropdown(label=self.t("Select Product"), border_radius=8, focused_border_color=PRIMARY, text_size=s(18), text_style=ts_large, color=TEXT_MAIN)
         self.stock_qty_input = ft.TextField(label=self.t("Quantity (use - to reduce)"), border_radius=8, focused_border_color=PRIMARY, on_submit=self.save_stock, text_style=ts_base)
         self.stock_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("Modify Raw Stock"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=ft.Column([self.prod_dropdown, self.stock_qty_input], tight=True), actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.stock_dialog), style=ft.ButtonStyle(color=TEXT_SUB, text_style=ts_base)), ft.ElevatedButton(self.t("Submit"), on_click=self.save_stock, style=get_btn_style(TEXT_MAIN, "#FFFFFF"))])
@@ -48,6 +47,19 @@ class LocationDialogsMixin:
         self.confirm_btn = ft.ElevatedButton("Yes", on_click=self.execute_step, style=get_btn_style(PRIMARY, "#FFFFFF"))
         self.confirm_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("Confirm Action"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=self.confirm_text, actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.confirm_dialog), style=ft.ButtonStyle(color=TEXT_SUB, text_style=ts_base)), self.confirm_btn])
         
+        # --- NEW: STEP SWAP DIALOG ---
+        self.swap_confirm_btn = ft.ElevatedButton(self.t("Yes, Swap"), on_click=self.execute_step_swap, style=get_btn_style(PRIMARY, "#FFFFFF"))
+        self.swap_confirm_text = ft.Text("", size=s(14), font_family="Jameel Noori")
+        self.swap_dialog = ft.AlertDialog(
+            shape=dlg_shape, 
+            title=ft.Text(self.t("Confirm Swap"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), 
+            content=self.swap_confirm_text, 
+            actions=[
+                ft.TextButton(self.t("Cancel"), on_click=lambda e: (setattr(self, 'pending_step_swap', None), self.page.close(self.swap_dialog)), style=ft.ButtonStyle(color=TEXT_SUB, text_style=ts_base)), 
+                self.swap_confirm_btn
+            ]
+        )
+
         self.delete_type_data = None
         self.delete_step_btn = ft.ElevatedButton(self.t("Delete"), on_click=self.execute_delete_step, style=get_btn_style("#EF4444", "white"))
         self.delete_confirm_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("Confirm Delete"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=ft.Text(self.t("Are you sure you want to delete this?"), size=s(14), font_family="Jameel Noori"), actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.delete_confirm_dialog), style=ft.ButtonStyle(text_style=ts_base)), self.delete_step_btn])
@@ -83,7 +95,6 @@ class LocationDialogsMixin:
         self.complete_batch_text = ft.Text(self.t("Finish this batch and securely log it into history?"), size=s(14), font_family="Jameel Noori")
         self.complete_batch_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("Complete Batch"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=self.complete_batch_text, actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.complete_batch_dialog), style=ft.ButtonStyle(color=TEXT_SUB, text_style=ts_base)), self.complete_btn])
         
-        # --- DROPDOWNS SET TO LARGE & BOLD ---
         self.move_confirm_btn = ft.ElevatedButton(self.t("Execute Move"), on_click=self.execute_move, style=get_btn_style(WARNING, "#FFFFFF"))
         self.move_fac_dd = ft.Dropdown(label=self.t("1. Destination Factory"), on_change=self.on_move_fac_change, border_radius=8, focused_border_color=WARNING, text_size=s(18), text_style=ts_large, color=TEXT_MAIN)
         self.move_loc_dd = ft.Dropdown(label=self.t("2. Destination Room"), on_change=self.on_move_loc_change, border_radius=8, focused_border_color=WARNING, text_size=s(18), text_style=ts_large, color=TEXT_MAIN)
@@ -96,7 +107,6 @@ class LocationDialogsMixin:
         self.split_fields_container = ft.Column(spacing=10, scroll=ft.ScrollMode.AUTO, height=200)
         self.split_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("Split Batch"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=ft.Column([self.split_avail_qty_label, self.split_num_input, self.split_fields_container], tight=True), actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.split_dialog), style=ft.ButtonStyle(color=TEXT_SUB, text_style=ts_base)), self.split_confirm_btn])
 
-        # --- DROPDOWN SET TO LARGE & BOLD ---
         self.merge_confirm_btn = ft.ElevatedButton(self.t("Merge"), on_click=self.execute_merge, style=get_btn_style(PRIMARY, "#FFFFFF"))
         self.merge_dd = ft.Dropdown(label=self.t("Select Target Batch"), border_radius=8, focused_border_color=PRIMARY, text_size=s(18), text_style=ts_large, color=TEXT_MAIN)
         self.merge_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("Merge Batch"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=self.merge_dd, actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.merge_dialog), style=ft.ButtonStyle(color=TEXT_SUB, text_style=ts_base)), self.merge_confirm_btn])
@@ -147,7 +157,6 @@ class LocationDialogsMixin:
     def open_add_stock_dialog(self, e):
         if not self.products_config: self.show_snackbar("Configure products in Settings first!", True); return
         
-        # --- APPLIED BOLD AND SIZE 18 DIRECTLY TO THE DROPDOWN LIST ITEMS ---
         bold_option_style = ft.TextStyle(font_family="Jameel Noori", weight=ft.FontWeight.BOLD, size=self.s(18), color=TEXT_MAIN)
         self.prod_dropdown.options = [ft.dropdown.Option(key=p, text=p, text_style=bold_option_style) for p in self.products_config.keys()]
         
@@ -209,7 +218,6 @@ class LocationDialogsMixin:
         valid_targets = [b["name"] for b in active_items_list if b["type"] == item["type"] and b["id"] != item_id]
         if not valid_targets: self.show_snackbar(self.t("No valid targets to merge into!"), True); return
         
-        # --- APPLIED BOLD AND SIZE 18 DIRECTLY TO THE DROPDOWN LIST ITEMS ---
         bold_option_style = ft.TextStyle(font_family="Jameel Noori", weight=ft.FontWeight.BOLD, size=self.s(18), color=TEXT_MAIN)
         self.merge_dd.options = [ft.dropdown.Option(key=n, text=n, text_style=bold_option_style) for n in valid_targets]
         
@@ -324,7 +332,6 @@ class LocationDialogsMixin:
     def open_move_dialog(self, item_id):
         self.current_action_item = item_id
         
-        # --- APPLIED BOLD AND SIZE 18 DIRECTLY TO THE DROPDOWN LIST ITEMS ---
         bold_option_style = ft.TextStyle(font_family="Jameel Noori", weight=ft.FontWeight.BOLD, size=self.s(18), color=TEXT_MAIN)
         self.move_fac_dd.options = [ft.dropdown.Option(key=f, text=f, text_style=bold_option_style) for f in self.factories]
         

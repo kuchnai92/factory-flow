@@ -69,8 +69,53 @@ class ProductMatrixView(ft.Container):
                 ft.ElevatedButton(self.t("Delete"), on_click=self.execute_delete, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8), color="white", bgcolor="#EF4444")) 
             ]
         )
+
+        # --- NEW: STEP SWAP DIALOG ---
+        self.pending_setup_swap = None
+        self.swap_confirm_btn = ft.ElevatedButton(self.t("Yes, Swap"), on_click=self.execute_setup_step_swap, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8), color="#FFFFFF", bgcolor="#2563EB"))
+        self.swap_confirm_text = ft.Text("", size=16)
+        self.swap_dialog = ft.AlertDialog(
+            shape=ft.RoundedRectangleBorder(radius=12),
+            title=ft.Text(self.t("Confirm Swap"), weight=ft.FontWeight.BOLD, size=20),
+            content=self.swap_confirm_text,
+            actions=[
+                ft.TextButton(self.t("Cancel"), on_click=lambda e: (setattr(self, 'pending_setup_swap', None), self.main_page.close(self.swap_dialog)), style=ft.ButtonStyle(color="#64748B")),
+                self.swap_confirm_btn
+            ]
+        )
         
         self.render_products(is_init=True)
+
+    # --- NEW: DRAG AND DROP SWAP METHODS ---
+    def handle_setup_step_swap(self, e):
+        src_control = self.main_page.get_control(e.src_id)
+        if not src_control: return
+        src_data = src_control.data
+        tgt_data = e.control.data
+
+        # Prevents swapping if dragging into a different product or same step
+        if src_data["product"] != tgt_data["product"] or src_data["step_idx"] == tgt_data["step_idx"]: return
+
+        prod = src_data["product"]
+        src_step_name = self.products[prod][src_data["step_idx"]]
+        tgt_step_name = self.products[prod][tgt_data["step_idx"]]
+
+        self.pending_setup_swap = (prod, src_data["step_idx"], tgt_data["step_idx"])
+        self.swap_confirm_text.value = f"{self.t('Are you sure you want to swap')} '{src_step_name}' {self.t('with')} '{tgt_step_name}'?"
+        self.main_page.open(self.swap_dialog)
+        self.main_page.update()
+
+    def execute_setup_step_swap(self, e):
+        if not hasattr(self, 'pending_setup_swap') or not self.pending_setup_swap: return
+        prod, src_idx, tgt_idx = self.pending_setup_swap
+        
+        # Swaps the items securely in your product list
+        self.products[prod][src_idx], self.products[prod][tgt_idx] = self.products[prod][tgt_idx], self.products[prod][src_idx]
+            
+        self.pending_setup_swap = None
+        self.main_page.close(self.swap_dialog)
+        self.render_products()
+        self.show_msg(self.t("Updated successfully!"))
 
     def show_msg(self, text, color="#10B981"):
         try:
@@ -131,18 +176,32 @@ class ProductMatrixView(ft.Container):
         for prod_name, steps in self.products.items():
             steps_column = ft.Column(spacing=0)
             for i, step in enumerate(steps):
-                steps_column.controls.append(
-                    ft.Container(
-                        padding=ft.padding.only(left=10, top=8, bottom=8), 
-                        border=ft.border.only(bottom=ft.border.BorderSide(1, "#F1F5F9")),
-                        content=ft.Row([
-                            ft.Container(padding=6, bgcolor="#EFF6FF", border_radius=20, content=ft.Text(str(i+1), size=14, color="#2563EB", weight=ft.FontWeight.BOLD)),
-                            ft.Text(step, expand=True, size=18, color="#334155", weight=ft.FontWeight.W_600, overflow=ft.TextOverflow.ELLIPSIS),
-                            ft.IconButton(ft.Icons.EDIT, icon_color="#60A5FA", icon_size=18, padding=0, width=34, height=34, on_click=lambda e, p=prod_name, idx=i: self.open_edit("step", p, idx)),
-                            ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#F87171", icon_size=18, padding=0, width=34, height=34, on_click=lambda e, p=prod_name, idx=i: self.confirm_delete("step", p, idx))
-                        ]) 
-                    )
+                step_container = ft.Container(
+                    padding=ft.padding.only(left=10, top=8, bottom=8), 
+                    border=ft.border.only(bottom=ft.border.BorderSide(1, "#F1F5F9")),
+                    content=ft.Row([
+                        ft.Container(padding=6, bgcolor="#EFF6FF", border_radius=20, content=ft.Text(str(i+1), size=14, color="#2563EB", weight=ft.FontWeight.BOLD)),
+                        ft.Text(step, expand=True, size=18, color="#334155", weight=ft.FontWeight.W_600, overflow=ft.TextOverflow.ELLIPSIS),
+                        ft.IconButton(ft.Icons.EDIT, icon_color="#60A5FA", icon_size=18, padding=0, width=34, height=34, on_click=lambda e, p=prod_name, idx=i: self.open_edit("step", p, idx)),
+                        ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#F87171", icon_size=18, padding=0, width=34, height=34, on_click=lambda e, p=prod_name, idx=i: self.confirm_delete("step", p, idx))
+                    ]) 
                 )
+
+                # --- NEW: Drag and Drop restricted to these steps ---
+                draggable_step = ft.Draggable(
+                    group=f"setup_steps_{prod_name}", 
+                    data={"product": prod_name, "step_idx": i},
+                    content=step_container
+                )
+                
+                drop_target = ft.DragTarget(
+                    group=f"setup_steps_{prod_name}",
+                    data={"product": prod_name, "step_idx": i},
+                    content=draggable_step,
+                    on_accept=self.handle_setup_step_swap
+                )
+                
+                steps_column.controls.append(drop_target)
 
             step_input = ft.TextField(label=self.t("Add routing step"), expand=True, border_radius=8, content_padding=10, text_size=16, height=48, border_color="#E2E8F0", focused_border_color="#2563EB")
             step_input.on_submit = lambda e, p=prod_name, inp=step_input: self.add_step(p, inp.value.strip(), inp)

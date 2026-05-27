@@ -42,6 +42,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
         self.current_action_item = None 
         self.current_process_product = None 
         self.active_product_filter = None
+        self.pending_step_swap = None 
 
         def s(size): return int(size * self.scale_factor)
         self.s = s
@@ -131,6 +132,72 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
 
     def on_view_mode_change(self, e):
         self.render_lists(e)
+        
+    def open_batch_details(self, item_id):
+        item = self.get_item_by_id(item_id)
+        if not item: return
+        
+        s = self.s
+        details_col = ft.Column(spacing=10, scroll=ft.ScrollMode.AUTO, expand=True)
+        
+        max_steps = len(item["steps"])
+        step_idx = item["step_idx"]
+        is_processing = item.get("is_processing", False)
+        
+        for idx, s_name in enumerate(item["steps"]):
+            step_time_str = ""
+            if idx < step_idx:
+                icon, color = ft.Icons.CHECK_CIRCLE, SUCCESS
+                for log in reversed(item["timeline"]):
+                    if log["step"] == f"Completed: {s_name}": 
+                        dt_obj = parse_date(log['time'])
+                        # Shows full date and time inside the detailed view
+                        step_time_str = f"{dt_obj.strftime('%d %b %Y, %I:%M %p')} • {log.get('qty', item['quantity']):g} units"
+                        break
+            elif idx == step_idx and is_processing:
+                icon, color = ft.Icons.MOTION_PHOTOS_ON, WARNING
+                for log in reversed(item["timeline"]):
+                    if log["step"] == f"Started: {s_name}": 
+                        dt_obj = parse_date(log['time'])
+                        step_time_str = f"{dt_obj.strftime('%d %b %Y, %I:%M %p')} • {log.get('qty', item['quantity']):g} units"
+                        break
+            elif idx == step_idx and not is_processing:
+                icon, color = ft.Icons.RADIO_BUTTON_UNCHECKED, PRIMARY
+                step_time_str = "Pending (Next)"
+            else:
+                icon, color = ft.Icons.RADIO_BUTTON_UNCHECKED, "#CBD5E1"
+                step_time_str = "Pending"
+                
+            details_col.controls.append(
+                ft.Container(
+                    padding=10, bgcolor="#F8FAFC", border_radius=8, border=ft.border.all(1, "#E2E8F0"),
+                    content=ft.Row([
+                        ft.Icon(icon, color=color, size=24),
+                        ft.Column([
+                            ft.Text(f"{idx + 1}. {s_name}", size=s(16), weight=ft.FontWeight.BOLD, color=TEXT_MAIN),
+                            ft.Text(step_time_str, size=s(13), color=TEXT_SUB)
+                        ], spacing=2, expand=True)
+                    ])
+                )
+            )
+
+        dlg = ft.AlertDialog(
+            shape=ft.RoundedRectangleBorder(radius=12),
+            title=ft.Row([
+                ft.Icon(ft.Icons.RECEIPT_LONG, color=PRIMARY),
+                ft.Text(f"Full Details: {item['name']}", weight=ft.FontWeight.BOLD, size=s(18))
+            ]),
+            content=ft.Container(
+                width=450, height=500,
+                content=details_col
+            ),
+            actions=[
+                ft.ElevatedButton("Close", on_click=lambda e: self.page.close(dlg), style=ft.ButtonStyle(bgcolor=PRIMARY, color="white", shape=ft.RoundedRectangleBorder(radius=8)))
+            ],
+            actions_alignment=ft.MainAxisAlignment.END
+        )
+        self.page.open(dlg)
+        self.page.update()
 
     def render(self):
         data_ctx = self.get_current_data()
@@ -247,11 +314,13 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                 if base not in grouped_batches: grouped_batches[base] = []
                 grouped_batches[base].append(item)
                 
-            def extract_num(b_name):
-                try: return int(''.join(filter(str.isdigit, b_name)))
-                except: return 0
+            def get_order_idx(b_name):
+                for i, itm in enumerate(tab_data["active"]):
+                    if itm["name"].split(".")[0] == b_name:
+                        return i
+                return 0
                 
-            sorted_base_names = sorted(grouped_batches.keys(), key=extract_num)
+            sorted_base_names = sorted(grouped_batches.keys(), key=get_order_idx)
 
             for base_name in sorted_base_names:
                 g_items = grouped_batches[base_name]
@@ -266,6 +335,9 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         bgcolor="#EFF6FF",
                         border_radius=8,
                         alignment=ft.alignment.center,
+                        on_click=lambda e, i=item["id"]: self.open_batch_details(i),
+                        ink=True,
+                        tooltip=self.t("Click to view full step history"),
                         content=ft.Row([
                             ft.Icon(ft.Icons.TAG, size=s(16), color=PRIMARY),
                             ft.Text(f"{self.t('Batch')} {display_tag}", size=s(16), weight=ft.FontWeight.W_900, color=PRIMARY)
@@ -278,8 +350,15 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
 
                     max_steps = len(item["steps"]); step_idx = item["step_idx"]; is_processing = item.get("is_processing", False)
                     
-                    steps_visual = ft.Column(spacing=2, scroll=ft.ScrollMode.AUTO, height=100 if max_steps > 0 else 10)
+                    # --- REMOVED SCROLL & FIXED HEIGHT ---
+                    steps_visual = ft.Column(spacing=2)
+                    
                     for idx, s_name in enumerate(item["steps"]):
+                        
+                        # --- ONLY RENDER PREVIOUS, CURRENT, AND NEXT STEP ---
+                        if idx not in [step_idx - 1, step_idx, step_idx + 1]:
+                            continue
+                            
                         step_time_str = ""
                         step_qty_val = item["quantity"]
                         
@@ -289,7 +368,8 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                                 if log["step"] == f"Completed: {s_name}": 
                                     dt_obj = parse_date(log['time'])
                                     step_qty_val = log.get('qty', item["quantity"])
-                                    step_time_str = f" • {dt_obj.strftime('%d %b %Y, %I:%M %p')} [{step_qty_val:g} {self.t('units')}]"
+                                    # Removed time, just showing date here
+                                    step_time_str = f" • {dt_obj.strftime('%d %b %Y')} [{step_qty_val:g} {self.t('units')}]"
                                     break
                         elif idx == step_idx and is_processing:
                             icon, color, font_w = ft.Icons.MOTION_PHOTOS_ON, WARNING, ft.FontWeight.W_700
@@ -297,7 +377,8 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                                 if log["step"] == f"Started: {s_name}": 
                                     dt_obj = parse_date(log['time'])
                                     step_qty_val = log.get('qty', item["quantity"])
-                                    step_time_str = f" • {dt_obj.strftime('%d %b %Y, %I:%M %p')} [{step_qty_val:g} {self.t('units')}]"
+                                    # Removed time, just showing date here
+                                    step_time_str = f" • {dt_obj.strftime('%d %b %Y')} [{step_qty_val:g} {self.t('units')}]"
                                     break
                         elif idx == step_idx and not is_processing: icon, color, font_w = ft.Icons.RADIO_BUTTON_UNCHECKED, PRIMARY, ft.FontWeight.W_600
                         else: icon, color, font_w = ft.Icons.RADIO_BUTTON_UNCHECKED, "#CBD5E1", ft.FontWeight.W_400
@@ -306,12 +387,27 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         del_btn = ft.IconButton(ft.Icons.CLOSE, icon_color="#EF4444", icon_size=12, padding=0, width=16, height=16, on_click=lambda e, i=item["id"], s_i=idx: self.confirm_delete_specific_step(i, s_i))
                         
                         display_step_name = f"{idx + 1}. {s_name}"
-                        steps_visual.controls.append(ft.Container(padding=ft.padding.only(left=5, right=5, top=2, bottom=2), border_radius=6, bgcolor="#F8FAFC" if (idx == step_idx) else ft.colors.TRANSPARENT, content=ft.Row([ft.Icon(icon, color=color, size=18), ft.Text(f"{display_step_name}", size=s(18), color=TEXT_MAIN if color != "#CBD5E1" else TEXT_SUB, weight=font_w, expand=True, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS), ft.Text(step_time_str, size=s(12), color=TEXT_SUB), del_btn if can_delete else ft.Container(width=16)])))
+                        
+                        step_container = ft.Container(padding=ft.padding.only(left=5, right=5, top=2, bottom=2), border_radius=6, bgcolor="#F8FAFC" if (idx == step_idx) else ft.colors.TRANSPARENT, content=ft.Row([ft.Icon(icon, color=color, size=18), ft.Text(f"{display_step_name}", size=s(18), color=TEXT_MAIN if color != "#CBD5E1" else TEXT_SUB, weight=font_w, expand=True, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS), ft.Text(step_time_str, size=s(12), color=TEXT_SUB), del_btn if can_delete else ft.Container(width=16)]))
+                        
+                        draggable_step = ft.Draggable(
+                            group=f"steps_{item['id']}", 
+                            data={"item_id": item["id"], "step_idx": idx},
+                            content=step_container
+                        )
+                        
+                        drop_target = ft.DragTarget(
+                            group=f"steps_{item['id']}",
+                            data={"item_id": item["id"], "step_idx": idx},
+                            content=draggable_step,
+                            on_accept=self.handle_step_swap
+                        )
+                        
+                        steps_visual.controls.append(drop_target)
 
                     if step_idx >= max_steps: btn_text, btn_color, next_btn_disabled = self.t("Ready to Archive"), "#CBD5E1", True 
                     else: btn_text, btn_color, next_btn_disabled = (self.t("Finish Step") if is_processing else self.t("Start Step")), ("#0D9488" if is_processing else PRIMARY), False 
 
-                    # --- REVERTED BACK TO NORMAL SIZES FOR INJECT STEP ---
                     add_step_btn = ft.IconButton(ft.Icons.ADD, tooltip="Inject routing step", icon_color=PRIMARY, bgcolor="#EFF6FF", icon_size=16, padding=0, width=24, height=24, on_click=lambda e, i=item["id"]: self.open_custom_step(i))
                     undo_btn = ft.IconButton(ft.Icons.UNDO, tooltip="Revert Last Action", icon_color=TEXT_SUB, hover_color="#F1F5F9", padding=0, width=30, height=30, on_click=lambda e, i=item["id"]: self.execute_revert(i))
                     move_btn = ft.IconButton(ft.Icons.DRIVE_FILE_MOVE_OUTLINE, tooltip=self.t("Relocate Batch"), icon_color=WARNING, bgcolor="#FFFBEB", padding=0, width=30, height=30, on_click=lambda e, i=item["id"]: self.open_move_dialog(i))
@@ -334,7 +430,6 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         ft.Divider(height=6, color="#F1F5F9"), 
                         steps_visual, 
                         ft.Container(height=2), 
-                        # --- REVERTED LABEL BACK TO SIZE s(10) ---
                         ft.Row([ft.Text("Inject manual step:", size=s(10), color=TEXT_SUB, weight=ft.FontWeight.W_500), add_step_btn], alignment=ft.MainAxisAlignment.START)
                     ])
 

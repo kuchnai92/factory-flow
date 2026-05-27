@@ -62,7 +62,7 @@ URDU_DICT = {
     "Update the master password used to log into the application.": "ایپ میں لاگ ان کرنے کے لیے ماسٹر پاس ورڈ اپ ڈیٹ کریں۔",
     "Change App Password": "ایپ پاس ورڈ تبدیل کریں",
     "Product Setup Matrix": "پروڈکٹ سیٹ اپ میٹرکس",
-    "Define global routing and processing steps.": "عالمی روٹنگ اور پروسیسنگ کے مراحل کی وضاحت کریں۔",
+    "Define global routing, processing steps, and manage raw stock levels.": "عالمی روٹنگ، پروسیسنگ کے مراحل کی وضاحت کریں اور خام اسٹاک کا نظم کریں۔",
     "Create Product": "پروڈکٹ بنائیں",
     "New Product Name": "نئے پروڈکٹ کا نام",
     "Edit Name": "نام میں ترمیم کریں",
@@ -98,9 +98,9 @@ URDU_DICT = {
     "Active Matrix": "ایکٹو میٹرکس",
     "Archive & Logs": "آرکائیو اور لاگز",
     "Live Tracking & Logs": "لائیو ٹریکنگ اور لاگز",
-    "Import Stock": "اسٹاک درآمد کریں",
     "Log Filter:": "لاگ فلٹر:",
     "Available Stock:": "دستیاب اسٹاک:",
+    "All Available Stocks:": "تمام دستیاب اسٹاک:",
     "Processing:": "پروسیسنگ:",
     "units": "یونٹس",
     "batches": "بیچز",
@@ -140,8 +140,6 @@ URDU_DICT = {
     "No active operations. Extract stock to begin.": "کوئی فعال کام نہیں۔ شروع کرنے کے لئے اسٹاک نکالیں۔",
     "Define a sub-location using the '+' icon above to start managing inventory.": "اسٹاک کے انتظام کے لئے اوپر '+' آئیکن کا استعمال کرتے ہوئے ایک ذیلی مقام کی وضاحت کریں۔",
     "No history matching this date range.": "اس تاریخ کی حد سے ملنے والی کوئی ہسٹری نہیں ہے۔",
-    "Zoom In": "بڑا کریں",
-    "Zoom Out": "چھوٹا کریں",
     "Old Password": "پرانا پاس ورڈ",
     "New Password": "نیا پاس ورڈ",
     "Confirm Password": "پاس ورڈ کی تصدیق کریں",
@@ -161,7 +159,6 @@ def main(page: ft.Page):
 
     page.title = "Fru Pro"
     
-    # --- ADDED: Properly attaches your logo to the active window frame ---
     try:
         page.window.icon = "assets/Yaseen Brothers.ico" 
     except Exception:
@@ -210,18 +207,19 @@ def main(page: ft.Page):
                     except: pass
         
         if loaded_data:
-            products_config.update(loaded_data.get("products_config", {}))
+            raw_products = loaded_data.get("products_config", {})
+            for k, v in raw_products.items():
+                if isinstance(v, list):
+                    products_config[k] = {"steps": v, "stock": 0}
+                else:
+                    products_config[k] = v
+                    
             factories.extend(loaded_data.get("factories", []))
             factory_sub_locations.update(loaded_data.get("factory_sub_locations", {}))
             level3_data.update(loaded_data.get("level3_data", {}))
             
             if "is_urdu_mode" in loaded_data:
                 db.config["language"] = "ur" if loaded_data["is_urdu_mode"] else "en"
-            
-            if "tab_scales" in loaded_data:
-                db.config["tab_scales"] = loaded_data["tab_scales"]
-            else:
-                db.config["tab_scales"] = {"0": 1.0, "1": 1.0, "2": 1.0, "loc": 1.0}
         
         active_factory_index = 0
         current_nav_index = 0
@@ -233,8 +231,7 @@ def main(page: ft.Page):
                 "factories": factories, 
                 "factory_sub_locations": factory_sub_locations, 
                 "level3_data": level3_data,
-                "is_urdu_mode": (db.config.get("language") == "ur"),
-                "tab_scales": db.config.get("tab_scales", {"0": 1.0, "1": 1.0, "2": 1.0, "loc": 1.0})
+                "is_urdu_mode": (db.config.get("language") == "ur")
             }
             try:
                 with open(STATE_FILE, "w") as f: json.dump(data_to_save, f, indent=4)
@@ -247,22 +244,7 @@ def main(page: ft.Page):
             
             is_urdu = (db.config.get("language") == "ur")
             page.rtl = is_urdu
-
             page.theme = ft.Theme(font_family="Jameel Noori")
-
-            tab_scales = db.config.get("tab_scales", {"0": 1.0, "1": 1.0, "2": 1.0, "loc": 1.0})
-            
-            def get_scale_key():
-                if current_nav_index == 0: return "0"
-                if current_nav_index == 1: return "1"
-                if current_nav_index == 2: return "2"
-                return "loc"
-
-            def get_scale(key):
-                return tab_scales.get(key, 1.0)
-                
-            scale_dash = get_scale("0")
-            def s_dash(size): return int(size * scale_dash)
 
             def t(text):
                 if is_urdu: return URDU_DICT.get(text, text)
@@ -355,7 +337,7 @@ def main(page: ft.Page):
             def edit_sidebar_loc(index): nonlocal target_edit_index; target_edit_index = index - 3; open_dialog("edit_loc", t("Edit Location"), factory_sub_locations[factories[active_factory_index]][target_edit_index])
             def get_current_l3_context(): return factories[active_factory_index], factory_sub_locations[factories[active_factory_index]][current_nav_index - 3]
             
-            location_view = LocationView(page, products_config, get_current_l3_context, factories, factory_sub_locations, level3_data, save_db, t, get_scale("loc"))
+            location_view = LocationView(page, products_config, get_current_l3_context, factories, factory_sub_locations, level3_data, save_db, t, 1.0)
             if hasattr(location_view, 'overlay_controls'):
                 for ctrl in location_view.overlay_controls: page.overlay.append(ctrl)
 
@@ -363,32 +345,31 @@ def main(page: ft.Page):
                 save_db()
                 setup_app()
 
-            dashboard_view = DashboardView(page, level3_data, t, get_scale("0"))
+            dashboard_view = DashboardView(page, level3_data, t, 1.0)
             product_matrix_view = ProductMatrixView(page, products_config, save_db, t)
             settings_view = SettingsView(page, save_db, action_push_to_db, action_pull_from_db, t)
 
             def toggle_sidebar(show: bool):
                 if show:
-                    if is_urdu:
-                        sidebar.right = 0
-                        sidebar.left = None
-                    else:
-                        sidebar.left = 0
-                        sidebar.right = None
+                    if is_urdu: sidebar.right = 0; sidebar.left = None
+                    else: sidebar.left = 0; sidebar.right = None
                     sidebar_overlay.visible = True
                 else:
-                    if is_urdu:
-                        sidebar.right = -280
-                        sidebar.left = None
-                    else:
-                        sidebar.left = -280
-                        sidebar.right = None
+                    if is_urdu: sidebar.right = -280; sidebar.left = None
+                    else: sidebar.left = -280; sidebar.right = None
                     sidebar_overlay.visible = False
                 page.update()
 
             def on_top_tab_change(index): 
                 nonlocal active_factory_index, current_nav_index
-                active_factory_index = index; current_nav_index = 0
+                active_factory_index = index
+                
+                if factories:
+                    current_factory = factories[active_factory_index]
+                    max_valid_nav = 2 + len(factory_sub_locations[current_factory])
+                    if current_nav_index > max_valid_nav:
+                        current_nav_index = 0
+                
                 refresh_ui()
 
             def on_nav_change(index):
@@ -401,72 +382,16 @@ def main(page: ft.Page):
             header = FactoryHeader(on_tab_change=on_top_tab_change, on_add_click=lambda e: open_dialog("add_factory", t("Add New Factory")), on_edit_click=lambda e: open_dialog("edit_factory", t("Edit Factory"), factories[active_factory_index] if factories else ""), on_delete_click=confirm_delete_active_factory, on_menu_click=lambda e: toggle_sidebar(True))
             sidebar = Sidebar(on_nav_change=on_nav_change, on_add_click=lambda: open_dialog("add_loc", t("Add Sidebar Location")) if factories else show_snack(t("Add a factory first!"), True), on_edit_click=edit_sidebar_loc, on_delete_click=confirm_delete_sidebar_loc, t=t, on_lang_change=on_language_toggled)
             
-            if is_urdu:
-                sidebar.right = 0
-                sidebar.left = None
-            else:
-                sidebar.left = 0
-                sidebar.right = None
-            sidebar.top = 0
-            sidebar.bottom = 0
+            if is_urdu: sidebar.right = 0; sidebar.left = None
+            else: sidebar.left = 0; sidebar.right = None
+            sidebar.top = 0; sidebar.bottom = 0
             
             content_margin = ft.margin.only(right=260) if is_urdu else ft.margin.only(left=260)
             content_area = ft.Container(margin=content_margin, expand=True, content=ft.Column(expand=True, spacing=0, controls=[header, ft.Container(expand=True, content=ft.Stack([dashboard_view, product_matrix_view, settings_view, location_view]))]))
 
-            def zoom_in(e):
-                k = get_scale_key()
-                tab_scales[k] = min(2.0, tab_scales.get(k, 1.0) + 0.1)
-                save_db(); setup_app()
-
-            def zoom_out(e):
-                k = get_scale_key()
-                tab_scales[k] = max(0.6, tab_scales.get(k, 1.0) - 0.1)
-                save_db(); setup_app()
-
-            def manual_zoom(e):
-                try:
-                    val = int(e.control.value.replace('%', '').strip())
-                    k = get_scale_key()
-                    tab_scales[k] = max(0.6, min(2.0, val / 100.0))
-                    save_db()
-                    setup_app()
-                except ValueError:
-                    refresh_ui() 
-
-            zoom_input = ft.TextField(
-                value=f"{int(get_scale(get_scale_key()) * 100)}",
-                width=55,
-                height=35,
-                text_align=ft.TextAlign.CENTER,
-                content_padding=ft.padding.all(0),
-                border=ft.InputBorder.NONE,
-                color="#FFFFFF",
-                cursor_color="#FFFFFF",
-                text_size=15,
-                text_style=ft.TextStyle(weight=ft.FontWeight.BOLD),
-                suffix_text="%",
-                suffix_style=ft.TextStyle(color="#94A3B8", weight=ft.FontWeight.BOLD, size=15),
-                on_submit=manual_zoom,
-                on_blur=manual_zoom
-            )
-
-            zoom_widget = ft.Container(
-                content=ft.Row([
-                    ft.IconButton(ft.Icons.REMOVE, on_click=zoom_out, icon_color="#FFFFFF", icon_size=18, tooltip=t("Zoom Out")),
-                    zoom_input,
-                    ft.IconButton(ft.Icons.ADD, on_click=zoom_in, icon_color="#FFFFFF", icon_size=18, tooltip=t("Zoom In"))
-                ], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
-                bgcolor="#0F172A",
-                border_radius=30,
-                padding=ft.padding.symmetric(horizontal=5, vertical=0),
-                shadow=ft.BoxShadow(blur_radius=10, color="#00000040", offset=ft.Offset(0, 4)),
-                right=20 if not is_urdu else None,
-                left=20 if is_urdu else None,
-                bottom=20,
-            )
-
             sidebar_overlay = ft.Container(bgcolor="#80000000", expand=True, visible=False, on_click=lambda e: toggle_sidebar(False))
-            root_stack = ft.Stack(controls=[content_area, sidebar_overlay, sidebar, zoom_widget], expand=True)
+            
+            root_stack = ft.Stack(controls=[content_area, sidebar_overlay, sidebar], expand=True)
             main_app_view = ft.Container(content=root_stack, expand=True, visible=False)
 
             def page_resize(e):
@@ -475,21 +400,13 @@ def main(page: ft.Page):
                 if pw < 768:
                     content_area.margin = ft.margin.all(0); header.set_menu_visible(True)
                     if not sidebar_overlay.visible:
-                        if is_urdu:
-                            sidebar.right = -280
-                            sidebar.left = None
-                        else:
-                            sidebar.left = -280
-                            sidebar.right = None
+                        if is_urdu: sidebar.right = -280; sidebar.left = None
+                        else: sidebar.left = -280; sidebar.right = None
                 else:
                     content_area.margin = ft.margin.only(right=260) if is_urdu else ft.margin.only(left=260)
                     header.set_menu_visible(False)
-                    if is_urdu:
-                        sidebar.right = 0
-                        sidebar.left = None
-                    else:
-                        sidebar.left = 0
-                        sidebar.right = None
+                    if is_urdu: sidebar.right = 0; sidebar.left = None
+                    else: sidebar.left = 0; sidebar.right = None
                     sidebar_overlay.visible = False
                 page.update()
             page.on_resized = page_resize
@@ -500,8 +417,7 @@ def main(page: ft.Page):
                     header.update_tabs([], 0); sidebar.update_locations([], 0)
                     dashboard_view.visible = True; product_matrix_view.visible = False; settings_view.visible = False; location_view.visible = False; page.update(); return
 
-                if active_factory_index >= len(factories):
-                    active_factory_index = 0
+                if active_factory_index >= len(factories): active_factory_index = 0
 
                 current_factory = factories[active_factory_index]
                 header.update_tabs(factories, active_factory_index); sidebar.update_locations(factory_sub_locations[current_factory], current_nav_index)
@@ -509,21 +425,15 @@ def main(page: ft.Page):
                 dashboard_view.visible = False; product_matrix_view.visible = False; settings_view.visible = False; location_view.visible = False
 
                 if current_nav_index == 0: 
-                    dashboard_view.render()
-                    dashboard_view.visible = True
-                    zoom_widget.visible = False 
+                    dashboard_view.render(); dashboard_view.visible = True
                 elif current_nav_index == 1: 
-                    product_matrix_view.visible = True
-                    zoom_widget.visible = False 
+                    # FIX: Explicitly forcing render_products ensures that expanded states correctly reapply!
+                    product_matrix_view.render_products(); product_matrix_view.visible = True
                 elif current_nav_index == 2: 
                     settings_view.visible = True
-                    zoom_widget.visible = False 
                 else: 
-                    location_view.update_context()
-                    location_view.visible = True
-                    zoom_widget.visible = True
+                    location_view.update_context(); location_view.visible = True
                 
-                zoom_input.value = f"{int(get_scale(get_scale_key()) * 100)}"
                 page.update()
 
             def do_login(e):
@@ -539,10 +449,8 @@ def main(page: ft.Page):
                         main_app_view.visible = True
                         page_resize(None)
                         refresh_ui()
-                    else:
-                        show_snack(t("Incorrect password!"), True)
-                else:
-                    show_snack(t("Please enter any username and password."), True)
+                    else: show_snack(t("Incorrect password!"), True)
+                else: show_snack(t("Please enter any username and password."), True)
 
             login_username = ft.TextField(label=t("Username"), prefix_icon=ft.Icons.PERSON, border_radius=8, width=300, on_submit=do_login)
             login_password = ft.TextField(label=t("Password"), prefix_icon=ft.Icons.LOCK, password=True, can_reveal_password=True, border_radius=8, width=300, on_submit=do_login)
@@ -572,8 +480,7 @@ def main(page: ft.Page):
                 page.update() 
                 refresh_ui()
                 page_resize(None)
-            else:
-                page.update()
+            else: page.update()
 
         setup_app()
 

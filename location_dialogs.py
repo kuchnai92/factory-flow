@@ -20,7 +20,6 @@ class LocationDialogsMixin:
                 text_style=ft.TextStyle(font_family="Jameel Noori")
             )
 
-        # --- Font Styles ---
         ts_base = ft.TextStyle(font_family="Jameel Noori", color=TEXT_MAIN)
         ts_large = ft.TextStyle(font_family="Jameel Noori", size=s(18), weight=ft.FontWeight.BOLD, color=TEXT_MAIN)
 
@@ -35,10 +34,6 @@ class LocationDialogsMixin:
         self.delete_l3_btn_confirm = ft.ElevatedButton(self.t("Delete"), on_click=self.execute_delete_l3, style=get_btn_style("#EF4444", "white"))
         self.delete_l3_confirm_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("Confirm Delete"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=ft.Text(self.t("Are you sure you want to delete this?"), size=s(14), font_family="Jameel Noori"), actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.delete_l3_confirm_dialog), style=ft.ButtonStyle(text_style=ts_base)), self.delete_l3_btn_confirm])
         
-        self.prod_dropdown = ft.Dropdown(label=self.t("Select Product"), border_radius=8, focused_border_color=PRIMARY, text_size=s(18), text_style=ts_large, color=TEXT_MAIN)
-        self.stock_qty_input = ft.TextField(label=self.t("Quantity (use - to reduce)"), border_radius=8, focused_border_color=PRIMARY, on_submit=self.save_stock, text_style=ts_base)
-        self.stock_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("Modify Raw Stock"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=ft.Column([self.prod_dropdown, self.stock_qty_input], tight=True), actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.stock_dialog), style=ft.ButtonStyle(color=TEXT_SUB, text_style=ts_base)), ft.ElevatedButton(self.t("Submit"), on_click=self.save_stock, style=get_btn_style(TEXT_MAIN, "#FFFFFF"))])
-        
         self.process_batch_input = ft.TextField(label=self.t("Batch Identifier"), border_radius=8, focused_border_color=PRIMARY, read_only=True, text_style=ts_base)
         self.process_qty_input = ft.TextField(label=self.t("Quantity to Process"), border_radius=8, focused_border_color=PRIMARY, on_submit=self.execute_process, autofocus=True, text_style=ts_base)
         self.process_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("Start Processing"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=ft.Column([self.process_batch_input, self.process_qty_input], tight=True), actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.process_dialog), style=ft.ButtonStyle(color=TEXT_SUB, text_style=ts_base)), ft.ElevatedButton(self.t("Launch Batch"), on_click=self.execute_process, style=get_btn_style(PRIMARY, "#FFFFFF"))])
@@ -47,7 +42,6 @@ class LocationDialogsMixin:
         self.confirm_btn = ft.ElevatedButton("Yes", on_click=self.execute_step, style=get_btn_style(PRIMARY, "#FFFFFF"))
         self.confirm_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("Confirm Action"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=self.confirm_text, actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.confirm_dialog), style=ft.ButtonStyle(color=TEXT_SUB, text_style=ts_base)), self.confirm_btn])
         
-        # --- NEW: STEP SWAP DIALOG ---
         self.swap_confirm_btn = ft.ElevatedButton(self.t("Yes, Swap"), on_click=self.execute_step_swap, style=get_btn_style(PRIMARY, "#FFFFFF"))
         self.swap_confirm_text = ft.Text("", size=s(14), font_family="Jameel Noori")
         self.swap_dialog = ft.AlertDialog(
@@ -152,18 +146,6 @@ class LocationDialogsMixin:
         self.page.open(self.delete_l3_confirm_dialog)
         self.page.update()
         try: self.delete_l3_btn_confirm.focus()
-        except: pass
-
-    def open_add_stock_dialog(self, e):
-        if not self.products_config: self.show_snackbar("Configure products in Settings first!", True); return
-        
-        bold_option_style = ft.TextStyle(font_family="Jameel Noori", weight=ft.FontWeight.BOLD, size=self.s(18), color=TEXT_MAIN)
-        self.prod_dropdown.options = [ft.dropdown.Option(key=p, text=p, text_style=bold_option_style) for p in self.products_config.keys()]
-        
-        self.prod_dropdown.value = None; self.stock_qty_input.value = ""
-        self.page.open(self.stock_dialog)
-        self.page.update()
-        try: self.stock_qty_input.focus()
         except: pass
 
     def open_process_dialog(self, product_name):
@@ -281,7 +263,7 @@ class LocationDialogsMixin:
         self.current_action_item = item_id
         item = self.get_item_by_id(item_id)
         ptype = item["type"]
-        default_steps = self.products_config.get(ptype, [])
+        default_steps = self.products_config.get(ptype, {}).get("steps", [])
         
         unique_steps = []
         for st in default_steps:

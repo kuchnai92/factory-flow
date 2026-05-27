@@ -1,12 +1,9 @@
 import flet as ft
 from datetime import datetime
-
-# --- Import from new Modular structure ---
 from archive_view import ArchiveLogView
 from location_actions import LocationActionsMixin, parse_qty
 from location_dialogs import LocationDialogsMixin
 
-# --- Constants ---
 CARD_BG = "#FFFFFF"
 TEXT_MAIN = "#0F172A"
 TEXT_SUB = "#64748B"
@@ -52,10 +49,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
         self.delete_l3_btn = ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color="#F87171", tooltip=self.t("Delete Location"), on_click=self.on_delete_l3_click)
         self.add_l3_btn = ft.IconButton(icon=ft.Icons.ADD_BOX, icon_color=PRIMARY, tooltip=self.t("New Sub-Location"), on_click=self.open_add_l3_dialog)
         
-        # --- INITIALIZE DIALOGS (Pulls from LocationDialogsMixin) ---
         self.setup_dialogs()
-        
-        self.add_stock_btn = ft.ElevatedButton(self.t("Import Stock"), icon=ft.Icons.ADD_SHOPPING_CART, on_click=self.open_add_stock_dialog, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8), bgcolor=TEXT_MAIN, color="#FFFFFF"))
         
         self.view_mode_tabs = ft.Tabs(selected_index=0, on_change=self.on_view_mode_change, animation_duration=300)
         self.list_container = ft.Column(spacing=8) 
@@ -64,7 +58,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
             expand=True,
             content=ft.Column([
                 ft.Container(padding=ft.padding.symmetric(horizontal=10, vertical=5), bgcolor=CARD_BG, border_radius=12, border=ft.border.all(1, BORDER), shadow=ft.BoxShadow(blur_radius=8, color="#00000005", offset=ft.Offset(0, 2)), content=ft.Row([self.l3_tabs, self.edit_l3_btn, self.delete_l3_btn, self.add_l3_btn], alignment=ft.MainAxisAlignment.START)),
-                ft.Row([self.view_mode_tabs, self.add_stock_btn], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True),
+                ft.Row([self.view_mode_tabs], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True),
                 self.list_container
             ], spacing=5)
         )
@@ -151,7 +145,6 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                 for log in reversed(item["timeline"]):
                     if log["step"] == f"Completed: {s_name}": 
                         dt_obj = parse_date(log['time'])
-                        # Shows full date and time inside the detailed view
                         step_time_str = f"{dt_obj.strftime('%d %b %Y, %I:%M %p')} • {log.get('qty', item['quantity']):g} units"
                         break
             elif idx == step_idx and is_processing:
@@ -208,7 +201,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
         self.l3_tabs.selected_index = data_ctx["active_tab"] if data_ctx["tabs"] else 0
         
         has_tabs = len(data_ctx["tabs"]) > 0
-        self.add_stock_btn.visible = has_tabs; self.view_mode_tabs.visible = has_tabs
+        self.view_mode_tabs.visible = has_tabs
         
         self.edit_l3_btn.visible = has_tabs
         self.delete_l3_btn.visible = has_tabs
@@ -242,8 +235,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
         tab_data = data_ctx["data"][data_ctx["tabs"][data_ctx["active_tab"]]]
         s = self.s
         
-        if not self.view_mode_tabs.tabs:
-            return
+        if not self.view_mode_tabs.tabs: return
             
         selected_tab_text = self.view_mode_tabs.tabs[self.view_mode_tabs.selected_index].text
 
@@ -267,7 +259,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                 on_blur=on_blur_cb, on_submit=on_blur_cb, read_only=read_only
             )
 
-        grouped_products = set(tab_data["stock"].keys())
+        grouped_products = set(self.products_config.keys())
         for item in tab_data["active"]: grouped_products.add(item["type"])
         if not grouped_products:
             self.list_container.controls.append(ft.Container(padding=40, alignment=ft.alignment.center, content=ft.Text(self.t("No active operations. Extract stock to begin."), color=TEXT_SUB, size=s(15))))
@@ -303,7 +295,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
 
         ptype = self.active_product_filter
         if ptype:
-            curr_stock = tab_data["stock"].get(ptype, 0)
+            curr_stock = self.products_config.get(ptype, {}).get("stock", 0)
             p_items = [b for b in tab_data["active"] if b["type"] == ptype]
             
             batch_row = ft.ResponsiveRow(columns=12, spacing=10, run_spacing=10)
@@ -350,12 +342,10 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
 
                     max_steps = len(item["steps"]); step_idx = item["step_idx"]; is_processing = item.get("is_processing", False)
                     
-                    # --- REMOVED SCROLL & FIXED HEIGHT ---
                     steps_visual = ft.Column(spacing=2)
                     
                     for idx, s_name in enumerate(item["steps"]):
                         
-                        # --- ONLY RENDER PREVIOUS, CURRENT, AND NEXT STEP ---
                         if idx not in [step_idx - 1, step_idx, step_idx + 1]:
                             continue
                             
@@ -368,7 +358,6 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                                 if log["step"] == f"Completed: {s_name}": 
                                     dt_obj = parse_date(log['time'])
                                     step_qty_val = log.get('qty', item["quantity"])
-                                    # Removed time, just showing date here
                                     step_time_str = f" • {dt_obj.strftime('%d %b %Y')} [{step_qty_val:g} {self.t('units')}]"
                                     break
                         elif idx == step_idx and is_processing:
@@ -377,7 +366,6 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                                 if log["step"] == f"Started: {s_name}": 
                                     dt_obj = parse_date(log['time'])
                                     step_qty_val = log.get('qty', item["quantity"])
-                                    # Removed time, just showing date here
                                     step_time_str = f" • {dt_obj.strftime('%d %b %Y')} [{step_qty_val:g} {self.t('units')}]"
                                     break
                         elif idx == step_idx and not is_processing: icon, color, font_w = ft.Icons.RADIO_BUTTON_UNCHECKED, PRIMARY, ft.FontWeight.W_600
@@ -478,16 +466,60 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
 
             process_btn = ft.ElevatedButton(self.t("Extract to Batch"), icon=ft.Icons.PLAY_ARROW, style=ft.ButtonStyle(color="#FFFFFF", bgcolor=TEXT_MAIN, shape=ft.RoundedRectangleBorder(radius=8), padding=ft.padding.symmetric(horizontal=15)), on_click=lambda e, p=ptype: self.open_process_dialog(p), disabled=(curr_stock <= 0))
             
-            header_row = ft.Container(
-                padding=ft.padding.symmetric(horizontal=5, vertical=5), 
+            # --- FIX: Single Horizontal Scrollable Row for Stocks (Sorted Highest to Lowest) ---
+            stock_badges = []
+            
+            sorted_products_by_stock = sorted(
+                self.products_config.items(), 
+                key=lambda item: item[1].get("stock", 0), 
+                reverse=True
+            )
+            
+            for p_name, p_data in sorted_products_by_stock:
+                p_stk = p_data.get("stock", 0)
+                stock_badges.append(
+                    ft.Container(
+                        padding=ft.padding.symmetric(horizontal=8, vertical=2),
+                        bgcolor="#F0FDF4" if p_stk > 0 else "#F8FAFC",
+                        border_radius=8,
+                        border=ft.border.all(1, "#BBF7D0" if p_stk > 0 else "#E2E8F0"),
+                        content=ft.Row([
+                            ft.Text(p_name, color="#166534" if p_stk > 0 else "#64748B", size=s(13), weight=ft.FontWeight.W_700),
+                            ft.Container(
+                                padding=ft.padding.symmetric(horizontal=6, vertical=2),
+                                bgcolor="#DCFCE7" if p_stk > 0 else "#F1F5F9",
+                                border_radius=4,
+                                content=ft.Text(f"{p_stk:g}", color="#15803D" if p_stk > 0 else "#94A3B8", size=s(12), weight=ft.FontWeight.W_900)
+                            )
+                        ], spacing=6)
+                    )
+                )
+
+            global_stocks_section = ft.Container(
+                expand=True,
                 content=ft.Row([
-                    ft.Container(content=ft.Text(f"{self.t('Available Stock:')} {curr_stock:g} {self.t('units')}", color=PRIMARY if curr_stock > 0 else TEXT_SUB, weight=ft.FontWeight.W_600, size=s(14)), expand=True, alignment=ft.alignment.center_left),
+                    ft.Container(width=1, height=24, bgcolor="#E2E8F0", margin=ft.margin.symmetric(horizontal=10)),
+                    ft.Icon(ft.Icons.ALL_INBOX_ROUNDED, color="#64748B", size=18),
+                    ft.Text(self.t("All Available Stocks:"), color="#64748B", size=s(13), weight=ft.FontWeight.W_800),
+                    ft.Container(content=ft.Row(stock_badges, spacing=8, scroll=ft.ScrollMode.AUTO), expand=True)
+                ], alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+            )
+
+            header_row = ft.Container(
+                padding=ft.padding.symmetric(horizontal=15, vertical=10),
+                bgcolor="#FFFFFF",
+                border_radius=10,
+                border=ft.border.all(1, "#E2E8F0"),
+                shadow=ft.BoxShadow(blur_radius=8, color="#00000005", offset=ft.Offset(0, 2)),
+                margin=ft.margin.only(bottom=15),
+                content=ft.Row([
                     process_btn,
-                    ft.Container(expand=True)
-                ])
+                    global_stocks_section
+                ], alignment=ft.MainAxisAlignment.START)
             )
 
             self.list_container.controls.append(header_row)
+            
             if p_items:
                 self.list_container.controls.append(batch_row)
             else:

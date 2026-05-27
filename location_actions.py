@@ -7,7 +7,6 @@ def parse_qty(val):
     except (ValueError, TypeError): return None
 
 class LocationActionsMixin:
-    # --- NEW: Drag and Drop Action Handlers for Steps ---
     def handle_step_swap(self, e):
         src_control = self.page.get_control(e.src_id)
         if not src_control: return
@@ -34,8 +33,6 @@ class LocationActionsMixin:
         item = self.get_item_by_id(item_id)
         if item:
             item["steps"][src_idx], item["steps"][tgt_idx] = item["steps"][tgt_idx], item["steps"][src_idx]
-            
-            # Ensures the active step highlight tracks the move properly
             if item["step_idx"] == src_idx:
                 item["step_idx"] = tgt_idx
             elif item["step_idx"] == tgt_idx:
@@ -45,7 +42,6 @@ class LocationActionsMixin:
         self.page.close(self.swap_dialog)
         self.render()
 
-    # --- REST OF YOUR CODE EXACTLY AS IS ---
     def revert_archived_batch(self, base_name):
         tab_data = self.get_current_data()["data"][self.get_current_data()["tabs"][self.get_current_data()["active_tab"]]]
         history = tab_data["history"]
@@ -103,41 +99,24 @@ class LocationActionsMixin:
         self.page.close(self.delete_l3_confirm_dialog)
         self.render()
 
-    def save_stock(self, e):
-        prod_name = self.prod_dropdown.value
-        qty_str = self.stock_qty_input.value.strip()
-        try: qty = float(qty_str)
-        except ValueError: return
-        if not prod_name or qty == 0: return
-
-        data_ctx = self.get_current_data(); tab_data = data_ctx["data"][data_ctx["tabs"][data_ctx["active_tab"]]]
-        current_stock = tab_data["stock"].get(prod_name, 0)
-
-        # Negative import removes raw stock!
-        if qty < 0 and abs(qty) > current_stock:
-            self.show_snackbar(f"{self.t('Not enough stock to remove! Only ')} {current_stock:g} {self.t(' available.')}", True)
-            return
-
-        tab_data["stock"][prod_name] = current_stock + qty
-        action_text = "Added to Stock" if qty > 0 else "Removed from Stock"
-
-        tab_data["history"].append({"entry_type": "Stock", "type": prod_name, "action": action_text, "quantity": abs(qty), "date": datetime.now().strftime("%Y-%m-%d %I:%M %p")})
-        self.active_product_filter = prod_name
-        self.page.close(self.stock_dialog)
-        self.render()
-
     def execute_process(self, e):
         ptype = self.current_process_product; qty = parse_qty(self.process_qty_input.value)
         batch_name = self.process_batch_input.value.strip()
         if not batch_name: return
         if qty is None or qty <= 0: return
-        data_ctx = self.get_current_data(); tab_data = data_ctx["data"][data_ctx["tabs"][data_ctx["active_tab"]]]
-        current_stock = tab_data["stock"].get(ptype, 0)
-        if qty > current_stock: self.show_snackbar(f"{self.t('Not enough stock! Only ')} {current_stock:g} {self.t(' available.')}", True); return
+        
+        current_stock = self.products_config.get(ptype, {}).get("stock", 0)
+        if qty > current_stock: 
+            self.show_snackbar(f"{self.t('Not enough stock! Only ')} {current_stock:g} {self.t(' available.')}", True)
+            return
             
-        tab_data["stock"][ptype] -= qty
-        independent_steps = list(self.products_config.get(ptype, []))
+        self.products_config[ptype]["stock"] = current_stock - qty
+        
+        independent_steps = list(self.products_config.get(ptype, {}).get("steps", []))
         time_str = datetime.now().strftime("%Y-%m-%d %I:%M %p")
+        
+        data_ctx = self.get_current_data()
+        tab_data = data_ctx["data"][data_ctx["tabs"][data_ctx["active_tab"]]]
         tab_data["active"].append({"id": str(uuid.uuid4()), "type": ptype, "name": batch_name, "quantity": qty, "steps": independent_steps, "step_idx": 0, "is_processing": False, "timeline": [{"step": "Created from Stock", "time": time_str, "qty": qty}]})
         self.page.close(self.process_dialog); self.render()
 
@@ -204,19 +183,16 @@ class LocationActionsMixin:
         except ValueError: return
             
         if qty == 0: return
-        
         is_free_stock = self.free_stock_checkbox.value
-        
         item = self.get_item_by_id(self.current_action_item)
-        tab_data = self.get_current_data()["data"][self.get_current_data()["tabs"][self.get_current_data()["active_tab"]]]
         
         if qty > 0:
             if not is_free_stock:
-                curr_stock = tab_data["stock"].get(item["type"], 0)
+                curr_stock = self.products_config.get(item["type"], {}).get("stock", 0)
                 if qty > curr_stock: 
                     self.show_snackbar(f"{self.t('Not enough stock! Only ')} {curr_stock:g} {self.t(' available.')}", True)
                     return
-                tab_data["stock"][item["type"]] -= qty
+                self.products_config[item["type"]]["stock"] = curr_stock - qty
                 
             item["quantity"] += qty
             action_text = " (Free Stock)" if is_free_stock else " from stock"
@@ -228,7 +204,8 @@ class LocationActionsMixin:
                 return
                 
             if not is_free_stock:
-                tab_data["stock"][item["type"]] = tab_data["stock"].get(item["type"], 0) + remove_qty
+                curr_stock = self.products_config.get(item["type"], {}).get("stock", 0)
+                self.products_config[item["type"]]["stock"] = curr_stock + remove_qty
                 
             item["quantity"] -= remove_qty
             action_text = " (Free/Discarded)" if is_free_stock else " to stock"
@@ -243,13 +220,13 @@ class LocationActionsMixin:
         if qty is None or qty <= 0: return
             
         item, active_items_list = self.get_item_by_id(self.current_action_item, return_list=True)
-        tab_data = self.get_current_data()["data"][self.get_current_data()["tabs"][self.get_current_data()["active_tab"]]]
         
         if qty > item["quantity"]:
             self.show_snackbar(self.t("Cannot return more than batch has!"), True)
             return
             
-        tab_data["stock"][item["type"]] = tab_data["stock"].get(item["type"], 0) + qty
+        curr_stock = self.products_config.get(item["type"], {}).get("stock", 0)
+        self.products_config[item["type"]]["stock"] = curr_stock + qty
         
         if qty == item["quantity"]:
             active_items_list.remove(item)
@@ -285,8 +262,8 @@ class LocationActionsMixin:
             item["steps"].insert(pos_idx, val)
             
             ptype = item["type"]
-            if ptype in self.products_config and val not in self.products_config[ptype]:
-                self.products_config[ptype].append(val)
+            if ptype in self.products_config and val not in self.products_config[ptype].get("steps", []):
+                self.products_config[ptype]["steps"].append(val)
             
             if pos_idx < item["step_idx"]: item["step_idx"] += 1
             elif pos_idx == item["step_idx"] and item.get("is_processing"): item["step_idx"] += 1

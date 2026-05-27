@@ -1,0 +1,162 @@
+{
+    "products_config": {
+        "\u06af\u0627\u062c\u0631": [
+            "\u0627\u0628\u0627\u0644\u0627",
+            "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+            "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+            "\u067e\u06a9\u0627 \u06cc\u06cc"
+        ]
+    },
+    "factories": [
+        "1"
+    ],
+    "factory_sub_locations": {
+        "1": [
+            "h"
+        ]
+    },
+    "level3_data": {
+        "1::h": {
+            "tabs": [
+                "i"
+            ],
+            "active_tab": 0,
+            "data": {
+                "i": {
+                    "stock": {
+                        "\u06af\u0627\u062c\u0631": 3.0
+                    },
+                    "active": [
+                        {
+                            "id": "5a51fbad-b665-4a23-bf6b-c6b5fb292acc",
+                            "type": "\u06af\u0627\u062c\u0631",
+                            "name": "Batch 2",
+                            "quantity": 7.0,
+                            "steps": [
+                                "\u0627\u0628\u0627\u0644\u0627",
+                                "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+                                "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+                                "\u067e\u06a9\u0627 \u06cc\u06cc"
+                            ],
+                            "step_idx": 1,
+                            "is_processing": false,
+                            "timeline": [
+                                {
+                                    "step": "Created from Stock",
+                                    "time": "2026-03-26 12:15 PM",
+                                    "qty": 1.0
+                                },
+                                {
+                                    "step": "Added 10 units (Free Stock)",
+                                    "time": "2026-03-28 01:45 AM",
+                                    "qty": 11.0
+                                },
+                                {
+                                    "step": "Started: \u0627\u0628\u0627\u0644\u0627",
+                                    "time": "2026-03-28 01:45 AM",
+                                    "qty": 11.0
+                                },
+                                {
+                                    "step": "Removed 4 units (Free/Discarded)",
+                                    "time": "2026-03-28 01:46 AM",
+                                    "qty": 7.0
+                                },
+                                {
+                                    "step": "Completed: \u0627\u0628\u0627\u0644\u0627",
+                                    "time": "2026-03-28 01:46 AM",
+                                    "qty": 7.0
+                                }
+                            ]
+                        }
+                    ],
+                    "history": [
+                        {
+                            "entry_type": "Stock",
+                            "type": "\u06af\u0627\u062c\u0631",
+                            "action": "Added to Stock",
+                            "quantity": 10.0,
+                            "date": "2026-03-25 08:49 PM"
+                        },
+                        {
+                            "id": "745983b5-94c9-4040-941a-02bfbd11f065",
+                            "type": "\u06af\u0627\u062c\u0631",
+                            "name": "Batch 1",
+                            "quantity": 6.0,
+                            "steps": [
+                                "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644"
+                            ],
+                            "step_idx": 0,
+                            "is_processing": false,
+                            "timeline": [
+                                {
+                                    "step": "Created from Stock",
+                                    "time": "2026-03-25 08:49 PM",
+                                    "qty": 6.0
+                                },
+                                {
+                                    "step": "Added 5 units from stock",
+                                    "time": "2026-03-25 09:31 PM",
+                                    "qty": 6.0
+                                },
+                                {
+                                    "step": "Batch Finalized & Archived",
+                                    "time": "2026-03-25 09:32 PM",
+                                    "qty": 6.0
+                                },
+                                {
+                                    "step": "Reverted from Archive",
+                                    "time": "2026-03-25 09:32 PM",
+                                    "qty": 6.0
+                                },
+                                {
+                                    "step": "Batch Finalized & Archived",
+                                    "time": "2026-03-25 09:39 PM",
+                                    "qty": 6.0
+                                },
+                                {
+                                    "step": "Reverted from Archive",
+                                    "time": "2026-03-25 09:39 PM",
+                                    "qty": 6.0
+                                },
+                                {
+                                    "step": "Relocated: [1 > h > i] \u2192 [1 > h > i]",
+                                    "time": "2026-03-26 10:25 AM",
+                                    "qty": 6.0
+                                },
+                                {
+                                    "step": "Relocated: [1 > h > i] \u2192 [1 > h > i]",
+                                    "time": "2026-03-26 10:26 AM",
+                                    "qty": 6.0
+                                },
+                                {
+                                    "step": "Batch Finalized & Archived",
+                                    "time": "2026-03-26 10:26 AM",
+                                    "qty": 6.0
+                                },
+                                {
+                                    "step": "Reverted from Archive",
+                                    "time": "2026-03-26 10:26 AM",
+                                    "qty": 6.0
+                                },
+                                {
+                                    "step": "Batch Finalized & Archived",
+                                    "time": "2026-03-26 10:27 AM",
+                                    "qty": 6.0
+                                }
+                            ],
+                            "date_completed": "2026-03-26 10:27 AM",
+                            "entry_type": "Batch"
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "is_urdu_mode": false,
+    "tab_scales": {
+        "0": 1.0,
+        "1": 1.0999999999999992,
+        "2": 1.0,
+        "loc": 1.1999999999999993
+    }
+}

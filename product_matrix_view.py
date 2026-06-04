@@ -174,7 +174,7 @@ class ProductMatrixView(ft.Container):
             ]
         )
 
-        # --- Stock Dialog ---
+        # --- Stock Dialog & History Action Dialogs ---
         self.current_stock_product = None
         self.show_full_history = False
         self.stock_qty_input = ft.TextField(
@@ -204,6 +204,33 @@ class ProductMatrixView(ft.Container):
             ),
             actions=[
                 ft.TextButton(self.t("Close"), on_click=lambda e: self.main_page.close(self.stock_dialog), style=ft.ButtonStyle(color="#64748B"))
+            ]
+        )
+
+        # --- Edit Stock History Dialog ---
+        self.edit_stock_history_idx = None
+        self.edit_stock_history_qty_input = ft.TextField(
+            label=self.t("New Quantity (+ or -)"), border_radius=8, focused_border_color="#2563EB", text_size=15, height=45, on_submit=self.save_edit_stock_history
+        )
+        self.edit_stock_history_dialog = ft.AlertDialog(
+            shape=ft.RoundedRectangleBorder(radius=12),
+            title=ft.Text(self.t("Edit Stock Entry"), weight=ft.FontWeight.BOLD, size=18),
+            content=self.edit_stock_history_qty_input,
+            actions=[
+                ft.TextButton(self.t("Cancel"), on_click=lambda e: self.main_page.close(self.edit_stock_history_dialog), style=ft.ButtonStyle(color="#64748B")),
+                ft.ElevatedButton(self.t("Save"), on_click=self.save_edit_stock_history, style=ft.ButtonStyle(bgcolor="#2563EB", color="white", shape=ft.RoundedRectangleBorder(radius=8)))
+            ]
+        )
+
+        # --- Delete Stock History Confirmation Dialog ---
+        self.delete_stock_history_idx = None
+        self.delete_stock_history_dialog = ft.AlertDialog(
+            shape=ft.RoundedRectangleBorder(radius=12),
+            title=ft.Text(self.t("Confirm Delete"), weight=ft.FontWeight.BOLD, size=18),
+            content=ft.Text(self.t("Delete this stock entry? This will reverse its effect on the total stock."), size=15),
+            actions=[
+                ft.TextButton(self.t("Cancel"), on_click=lambda e: self.main_page.close(self.delete_stock_history_dialog), style=ft.ButtonStyle(color="#64748B")),
+                ft.ElevatedButton(self.t("Delete"), on_click=self.execute_delete_stock_history, style=ft.ButtonStyle(bgcolor="#EF4444", color="white", shape=ft.RoundedRectangleBorder(radius=8)))
             ]
         )
 
@@ -325,8 +352,8 @@ class ProductMatrixView(ft.Container):
                     ]) 
                 )
                 draggable_step = ft.Draggable(group=f"setup_steps_{prod_name}", data={"product": prod_name, "step_idx": i}, content=step_container)
+                
                 drop_target = ft.DragTarget(
-                    key=f"step_{i}", 
                     group=f"setup_steps_{prod_name}", 
                     data={"product": prod_name, "step_idx": i}, 
                     content=draggable_step, 
@@ -418,20 +445,33 @@ class ProductMatrixView(ft.Container):
     def refresh_stock_history_ui(self):
         self.stock_history_col.controls.clear()
         history = self.products.get(self.current_stock_product, {}).get("stock_history", [])
-        display_history = list(reversed(history))
+        
+        indexed_history = list(enumerate(history))
+        display_history = list(reversed(indexed_history))
+        
         if not self.show_full_history: display_history = display_history[:10]
         if not display_history:
             self.stock_history_col.controls.append(ft.Container(padding=20, alignment=ft.alignment.center, content=ft.Text(self.t("No stock history found."), color="#64748B", italic=True)))
         else:
-            for entry in display_history:
+            for original_idx, entry in display_history:
                 qty = entry.get("qty", 0); date_str = entry.get("date", "Unknown Date")
                 color, sign, bg_color, border_color = ("#10B981", "+", "#ECFDF5", "#D1FAE5") if qty > 0 else ("#EF4444", "", "#FEF2F2", "#FEE2E2")
+                
+                actions_row = ft.Row([
+                    ft.IconButton(ft.Icons.EDIT, icon_size=16, icon_color="#3B82F6", padding=0, width=28, height=28, on_click=lambda e, idx=original_idx: self.open_edit_stock_history(idx)),
+                    ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_size=16, icon_color="#EF4444", padding=0, width=28, height=28, on_click=lambda e, idx=original_idx: self.confirm_delete_stock_history(idx))
+                ], spacing=2)
+
                 self.stock_history_col.controls.append(
                     ft.Container(
                         padding=ft.padding.symmetric(horizontal=12, vertical=8), border_radius=8, bgcolor=bg_color, border=ft.border.all(1, border_color),
                         content=ft.Row([
                             ft.Row([ft.Icon(ft.Icons.CALENDAR_TODAY, size=15, color="#64748B"), ft.Text(date_str, size=14, color="#475569", weight=ft.FontWeight.W_600)]),
-                            ft.Text(f"{sign}{qty:g}", size=15, color=color, weight=ft.FontWeight.W_900)
+                            ft.Row([
+                                ft.Text(f"{sign}{qty:g}", size=15, color=color, weight=ft.FontWeight.W_900),
+                                ft.Container(width=5),
+                                actions_row
+                            ], alignment=ft.MainAxisAlignment.END)
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
                     )
                 )
@@ -451,6 +491,71 @@ class ProductMatrixView(ft.Container):
         self.render_products()
         self.show_msg(self.t("Stock updated successfully!"))
         self.main_page.update()
+
+    # --- NEW: Edit & Delete Stock History Logic ---
+    def open_edit_stock_history(self, idx):
+        self.edit_stock_history_idx = idx
+        history = self.products[self.current_stock_product].get("stock_history", [])
+        if idx < len(history):
+            self.edit_stock_history_qty_input.value = f"{history[idx]['qty']:g}"
+            self.main_page.open(self.edit_stock_history_dialog)
+            self.main_page.update()
+
+    def save_edit_stock_history(self, e):
+        try:
+            new_qty = float(self.edit_stock_history_qty_input.value.strip())
+        except ValueError:
+            self.show_msg(self.t("Invalid quantity!"), "#EF4444")
+            return
+
+        if new_qty == 0:
+            self.show_msg(self.t("Quantity cannot be zero!"), "#EF4444")
+            return
+
+        idx = self.edit_stock_history_idx
+        prod = self.products[self.current_stock_product]
+        old_qty = prod["stock_history"][idx]["qty"]
+
+        diff = new_qty - old_qty
+        
+        # Verify it doesn't drop total stock below 0
+        if prod.get("stock", 0) + diff < 0:
+            self.show_msg(self.t("Edit would cause total stock to be negative!"), "#EF4444")
+            return
+
+        prod["stock"] += diff
+        prod["stock_history"][idx]["qty"] = new_qty
+
+        self.main_page.close(self.edit_stock_history_dialog)
+        self.refresh_stock_history_ui()
+        self.render_products()
+        self.show_msg(self.t("Stock entry updated successfully!"))
+        self.main_page.update()
+
+    def confirm_delete_stock_history(self, idx):
+        self.delete_stock_history_idx = idx
+        self.main_page.open(self.delete_stock_history_dialog)
+        self.main_page.update()
+
+    def execute_delete_stock_history(self, e):
+        idx = self.delete_stock_history_idx
+        prod = self.products[self.current_stock_product]
+        qty_to_remove = prod["stock_history"][idx]["qty"]
+
+        if prod.get("stock", 0) - qty_to_remove < 0:
+            self.show_msg(self.t("Deleting this would cause total stock to be negative!"), "#EF4444")
+            self.main_page.close(self.delete_stock_history_dialog)
+            return
+
+        prod["stock"] -= qty_to_remove
+        prod["stock_history"].pop(idx)
+
+        self.main_page.close(self.delete_stock_history_dialog)
+        self.refresh_stock_history_ui()
+        self.render_products()
+        self.show_msg(self.t("Stock entry deleted successfully!"))
+        self.main_page.update()
+    # -----------------------------------------------
 
     def open_edit(self, edit_type, product_name, step_index=None):
         self.current_edit_data = {"type": edit_type, "product": product_name, "step": step_index}
@@ -508,12 +613,11 @@ class ProductMatrixView(ft.Container):
             
             steps_count = len(prod_data.get("steps", []))
 
-            # --- COMPACTED ROW PADDING ---
             row_container = ft.Container(
                 padding=ft.padding.symmetric(horizontal=15, vertical=8),
                 border=ft.border.only(bottom=ft.border.BorderSide(1, "#F1F5F9")),
                 content=ft.Row([
-                    ft.Text(prod_name, expand=2, weight=ft.FontWeight.W_800, color="#0F172A", size=20), # INCREASED SIZE HERE
+                    ft.Text(prod_name, expand=2, weight=ft.FontWeight.W_800, color="#0F172A", size=20), 
                     ft.Text(f"{stock_qty:g}", expand=1, color="#EF4444" if stock_qty <= 0 else "#10B981", weight=ft.FontWeight.W_800, size=16),
                     
                     ft.Container(

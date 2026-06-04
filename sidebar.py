@@ -23,6 +23,7 @@ class Sidebar(ft.Container):
         
         self.selected_index = 0
         self.sub_locations = []
+        self.counts_dict = {}
 
     def toggle_language(self, e):
         db.config["language"] = "ur" if e.control.value else "en"
@@ -30,9 +31,10 @@ class Sidebar(ft.Container):
         if self.on_lang_change:
             self.on_lang_change()
         
-    def update_locations(self, sub_locations, selected_index):
+    def update_locations(self, sub_locations, selected_index, counts_dict=None):
         self.sub_locations = sub_locations
         self.selected_index = selected_index
+        self.counts_dict = counts_dict or {}
         self.render()
         
     def render(self):
@@ -65,7 +67,8 @@ class Sidebar(ft.Container):
         
         for i, loc in enumerate(self.sub_locations):
             actual_index = i + 3
-            self.nav_column.controls.append(self.create_item(ft.Icons.FOLDER_OUTLINED, loc, actual_index, is_custom=True))
+            badge_count = self.counts_dict.get(loc, 0)
+            self.nav_column.controls.append(self.create_item(ft.Icons.FOLDER_OUTLINED, loc, actual_index, is_custom=True, badge_count=badge_count))
             
         self.nav_column.controls.append(ft.Container(expand=True)) 
         self.nav_column.controls.append(ft.Divider(height=1, color="#E2E8F0"))
@@ -98,7 +101,7 @@ class Sidebar(ft.Container):
         except:
             pass
         
-    def create_item(self, icon, label, index, is_custom=False):
+    def create_item(self, icon, label, index, is_custom=False, badge_count=0):
         is_selected = self.selected_index == index
         
         bg = "#EFF6FF" if is_selected else ft.Colors.TRANSPARENT
@@ -106,9 +109,25 @@ class Sidebar(ft.Container):
         icon_color = "#2563EB" if is_selected else "#94A3B8"
         weight = ft.FontWeight.W_700 if is_selected else ft.FontWeight.W_600
         
+        label_row = ft.Row([
+            ft.Text(label, color=text_color, size=16, weight=weight, expand=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
+        ], expand=True)
+
+        if badge_count > 0:
+            label_row.controls.append(
+                ft.Container(
+                    # --- INCREASED PADDING FOR BETTER BADGE SHAPE ---
+                    padding=ft.padding.symmetric(horizontal=8, vertical=2),
+                    bgcolor="#DBEAFE" if is_selected else "#F1F5F9",
+                    border_radius=10,
+                    # --- INCREASED SIZE TO 13 AND WEIGHT TO W_900 ---
+                    content=ft.Text(str(badge_count), size=13, color="#2563EB" if is_selected else "#64748B", weight=ft.FontWeight.W_900)
+                )
+            )
+        
         controls = [
             ft.Icon(icon, color=icon_color, size=22),
-            ft.Text(label, color=text_color, size=16, weight=weight, expand=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
+            label_row
         ]
         
         if is_custom:

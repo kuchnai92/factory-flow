@@ -125,7 +125,8 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
         self.render_lists(None)
 
     def on_view_mode_change(self, e):
-        self.render_lists(e)
+        self.render_lists(None) 
+        self.page.update() 
         
     def open_batch_details(self, item_id):
         item = self.get_item_by_id(item_id)
@@ -194,10 +195,34 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
 
     def render(self):
         data_ctx = self.get_current_data()
-        current_l3_names = [t.text for t in self.l3_tabs.tabs]
-        if current_l3_names != data_ctx["tabs"]:
-            self.l3_tabs.tabs = [ft.Tab(text=t) for t in data_ctx["tabs"]]
+        
+        new_tabs = []
+        for t_name in data_ctx["tabs"]:
+            active_count = len(data_ctx["data"][t_name].get("active", []))
+            tab_text = f"{t_name} ({active_count})" if active_count > 0 else t_name
+            new_tab = ft.Tab(
+                tab_content=ft.Container(
+                    padding=ft.padding.symmetric(horizontal=12, vertical=6),
+                    content=ft.Text(tab_text, size=self.s(17), weight=ft.FontWeight.W_800)
+                )
+            )
+            new_tab.data = t_name 
+            new_tabs.append(new_tab)
             
+        current_l3_names = [getattr(t, 'data', t.text) for t in self.l3_tabs.tabs]
+        
+        if current_l3_names != data_ctx["tabs"]:
+            self.l3_tabs.tabs = new_tabs
+        else:
+            for i, t_name in enumerate(data_ctx["tabs"]):
+                active_count = len(data_ctx["data"][t_name].get("active", []))
+                tab_text = f"{t_name} ({active_count})" if active_count > 0 else t_name
+                self.l3_tabs.tabs[i].tab_content = ft.Container(
+                    padding=ft.padding.symmetric(horizontal=12, vertical=6),
+                    content=ft.Text(tab_text, size=self.s(17), weight=ft.FontWeight.W_800)
+                )
+                self.l3_tabs.tabs[i].data = t_name
+                
         self.l3_tabs.selected_index = data_ctx["active_tab"] if data_ctx["tabs"] else 0
         
         has_tabs = len(data_ctx["tabs"]) > 0
@@ -252,8 +277,8 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
         
         def make_input(val, lbl, width, on_blur_cb, read_only=False): 
             return ft.TextField(
-                value=val, label=lbl, height=s(42), content_padding=ft.padding.symmetric(horizontal=10, vertical=8), 
-                text_size=s(16), 
+                value=val, label=lbl, height=s(46), content_padding=ft.padding.symmetric(horizontal=10, vertical=10), 
+                text_size=s(18), 
                 label_style=ft.TextStyle(weight=ft.FontWeight.W_800, color=TEXT_MAIN, size=s(14)), 
                 width=width, expand=(width is None), border_radius=8, border_color="#E2E8F0", focused_border_color=PRIMARY, 
                 on_blur=on_blur_cb, on_submit=on_blur_cb, read_only=read_only
@@ -265,28 +290,33 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
             self.list_container.controls.append(ft.Container(padding=40, alignment=ft.alignment.center, content=ft.Text(self.t("No active operations. Extract stock to begin."), color=TEXT_SUB, size=s(15))))
             if self.page: self.update(); return
 
-        sorted_products = sorted(list(grouped_products))
+        product_batch_counts = {p: len([b for b in tab_data["active"] if b["type"] == p]) for p in grouped_products}
+        sorted_products = sorted(list(grouped_products), key=lambda p: (-product_batch_counts[p], p))
+
         if self.active_product_filter not in sorted_products:
             self.active_product_filter = sorted_products[0]
 
-        selector_row = ft.Row(scroll=ft.ScrollMode.ADAPTIVE, spacing=10)
+        selector_row = ft.Row(scroll=ft.ScrollMode.ADAPTIVE, spacing=12)
         for ptype in sorted_products:
-            p_items = [b for b in tab_data["active"] if b["type"] == ptype]
-            proc_qty = sum(b["quantity"] for b in p_items)
+            batch_count = product_batch_counts[ptype] 
             is_selected = (self.active_product_filter == ptype)
             
             bg_c = PRIMARY if is_selected else CARD_BG
             text_c = "#FFFFFF" if is_selected else TEXT_MAIN
             border_c = PRIMARY if is_selected else BORDER
-            sub_c = "#DBEAFE" if is_selected else TEXT_SUB
 
             card = ft.Container(
-                content=ft.Column([
-                    ft.Text(ptype, size=s(16), weight=ft.FontWeight.W_800, color=text_c),
-                    ft.Text(f"{proc_qty:g} {self.t('units')}", size=s(12), color=sub_c)
-                ], spacing=2),
-                bgcolor=bg_c, border_radius=12, padding=ft.padding.symmetric(horizontal=15, vertical=8),
-                border=ft.border.all(1, border_c), shadow=ft.BoxShadow(blur_radius=8, color="#0000000A", offset=ft.Offset(0, 2)),
+                content=ft.Row([
+                    ft.Text(ptype, size=s(18), weight=ft.FontWeight.W_800, color=text_c),
+                    ft.Container(
+                        padding=ft.padding.symmetric(horizontal=10, vertical=4),
+                        bgcolor="#3B82F6" if is_selected else "#E2E8F0",
+                        border_radius=14,
+                        content=ft.Text(f"{batch_count}", size=s(14), color="#FFFFFF" if is_selected else "#475569", weight=ft.FontWeight.W_900)
+                    )
+                ], spacing=10, alignment=ft.MainAxisAlignment.CENTER),
+                bgcolor=bg_c, border_radius=30, padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                border=ft.border.all(1, border_c), shadow=ft.BoxShadow(blur_radius=8, color="#00000005", offset=ft.Offset(0, 2)),
                 on_click=lambda e, p=ptype: self.set_filter(p), ink=True
             )
             selector_row.controls.append(card)
@@ -298,7 +328,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
             curr_stock = self.products_config.get(ptype, {}).get("stock", 0)
             p_items = [b for b in tab_data["active"] if b["type"] == ptype]
             
-            batch_row = ft.ResponsiveRow(columns=12, spacing=10, run_spacing=10)
+            batch_row = ft.ResponsiveRow(columns=12, spacing=12, run_spacing=12)
             
             grouped_batches = {}
             for item in p_items:
@@ -322,7 +352,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                     display_tag = item["name"].replace("Batch ", "")
                     
                     batch_display = ft.Container(
-                        height=s(42),
+                        height=s(46),
                         padding=ft.padding.symmetric(horizontal=12, vertical=0),
                         bgcolor="#EFF6FF",
                         border_radius=8,
@@ -331,14 +361,14 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         ink=True,
                         tooltip=self.t("Click to view full step history"),
                         content=ft.Row([
-                            ft.Icon(ft.Icons.TAG, size=s(16), color=PRIMARY),
-                            ft.Text(f"{self.t('Batch')} {display_tag}", size=s(16), weight=ft.FontWeight.W_900, color=PRIMARY)
+                            ft.Icon(ft.Icons.TAG, size=s(20), color=PRIMARY),
+                            ft.Text(f"{self.t('Batch')} {display_tag}", size=s(20), weight=ft.FontWeight.W_900, color=PRIMARY)
                         ], spacing=6)
                     )
 
-                    qty_field = make_input(f"{item['quantity']:g}", self.t("Qty"), s(70), lambda e, i=item["id"]: None, read_only=True)
+                    qty_field = make_input(f"{item['quantity']:g}", self.t("Qty"), s(80), lambda e, i=item["id"]: None, read_only=True)
                     
-                    restock_btn = ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#EF4444", tooltip=self.t("Cancel & Restock"), padding=0, width=30, height=30, on_click=lambda e, i=item["id"]: self.open_cancel_to_stock_dialog(i))
+                    restock_btn = ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#EF4444", tooltip=self.t("Cancel & Restock"), padding=0, width=36, height=36, icon_size=22, on_click=lambda e, i=item["id"]: self.open_cancel_to_stock_dialog(i))
 
                     max_steps = len(item["steps"]); step_idx = item["step_idx"]; is_processing = item.get("is_processing", False)
                     
@@ -372,11 +402,19 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         else: icon, color, font_w = ft.Icons.RADIO_BUTTON_UNCHECKED, "#CBD5E1", ft.FontWeight.W_400
                             
                         can_delete = (idx > step_idx) or (idx == step_idx and not is_processing)
-                        del_btn = ft.IconButton(ft.Icons.CLOSE, icon_color="#EF4444", icon_size=12, padding=0, width=16, height=16, on_click=lambda e, i=item["id"], s_i=idx: self.confirm_delete_specific_step(i, s_i))
+                        del_btn = ft.IconButton(ft.Icons.CLOSE, icon_color="#EF4444", icon_size=16, padding=0, width=20, height=20, on_click=lambda e, i=item["id"], s_i=idx: self.confirm_delete_specific_step(i, s_i))
                         
                         display_step_name = f"{idx + 1}. {s_name}"
                         
-                        step_container = ft.Container(padding=ft.padding.only(left=5, right=5, top=2, bottom=2), border_radius=6, bgcolor="#F8FAFC" if (idx == step_idx) else ft.colors.TRANSPARENT, content=ft.Row([ft.Icon(icon, color=color, size=18), ft.Text(f"{display_step_name}", size=s(18), color=TEXT_MAIN if color != "#CBD5E1" else TEXT_SUB, weight=font_w, expand=True, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS), ft.Text(step_time_str, size=s(12), color=TEXT_SUB), del_btn if can_delete else ft.Container(width=16)]))
+                        step_container = ft.Container(
+                            padding=ft.padding.only(left=5, right=5, top=4, bottom=4), border_radius=6, bgcolor="#F8FAFC" if (idx == step_idx) else ft.colors.TRANSPARENT, 
+                            content=ft.Row([
+                                ft.Icon(icon, color=color, size=22), 
+                                ft.Text(f"{display_step_name}", size=s(20), color=TEXT_MAIN if color != "#CBD5E1" else TEXT_SUB, weight=font_w, expand=True, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS), 
+                                ft.Text(step_time_str, size=s(14), color=TEXT_SUB), 
+                                del_btn if can_delete else ft.Container(width=20)
+                            ])
+                        )
                         
                         draggable_step = ft.Draggable(
                             group=f"steps_{item['id']}", 
@@ -396,29 +434,30 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                     if step_idx >= max_steps: btn_text, btn_color, next_btn_disabled = self.t("Ready to Archive"), "#CBD5E1", True 
                     else: btn_text, btn_color, next_btn_disabled = (self.t("Finish Step") if is_processing else self.t("Start Step")), ("#0D9488" if is_processing else PRIMARY), False 
 
-                    add_step_btn = ft.IconButton(ft.Icons.ADD, tooltip="Inject routing step", icon_color=PRIMARY, bgcolor="#EFF6FF", icon_size=16, padding=0, width=24, height=24, on_click=lambda e, i=item["id"]: self.open_custom_step(i))
-                    undo_btn = ft.IconButton(ft.Icons.UNDO, tooltip="Revert Last Action", icon_color=TEXT_SUB, hover_color="#F1F5F9", padding=0, width=30, height=30, on_click=lambda e, i=item["id"]: self.execute_revert(i))
-                    move_btn = ft.IconButton(ft.Icons.DRIVE_FILE_MOVE_OUTLINE, tooltip=self.t("Relocate Batch"), icon_color=WARNING, bgcolor="#FFFBEB", padding=0, width=30, height=30, on_click=lambda e, i=item["id"]: self.open_move_dialog(i))
-                    next_btn = ft.ElevatedButton(btn_text, disabled=next_btn_disabled, style=ft.ButtonStyle(color="#FFFFFF", bgcolor=btn_color, shape=ft.RoundedRectangleBorder(radius=6), padding=ft.padding.symmetric(horizontal=10, vertical=0)), height=32, on_click=lambda e, i=item["id"]: self.open_confirm_step(i))
-                    complete_batch_btn = ft.ElevatedButton(self.t("Archive"), style=ft.ButtonStyle(color="#FFFFFF", bgcolor=SUCCESS, shape=ft.RoundedRectangleBorder(radius=6), padding=ft.padding.symmetric(horizontal=10, vertical=0)), height=32, on_click=lambda e, i=item["id"]: self.open_complete_batch(i))
+                    add_step_btn = ft.IconButton(ft.Icons.ADD, tooltip="Inject routing step", icon_color=PRIMARY, bgcolor="#EFF6FF", icon_size=18, padding=0, width=28, height=28, on_click=lambda e, i=item["id"]: self.open_custom_step(i))
+                    undo_btn = ft.IconButton(ft.Icons.UNDO, tooltip="Revert Last Action", icon_color=TEXT_SUB, hover_color="#F1F5F9", padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item["id"]: self.execute_revert(i))
+                    move_btn = ft.IconButton(ft.Icons.DRIVE_FILE_MOVE_OUTLINE, tooltip=self.t("Relocate Batch"), icon_color=WARNING, bgcolor="#FFFBEB", padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item["id"]: self.open_move_dialog(i))
+                    next_btn = ft.ElevatedButton(btn_text, disabled=next_btn_disabled, style=ft.ButtonStyle(color="#FFFFFF", bgcolor=btn_color, shape=ft.RoundedRectangleBorder(radius=6), padding=ft.padding.symmetric(horizontal=12, vertical=0), text_style=ft.TextStyle(size=s(16), weight=ft.FontWeight.W_700)), height=40, on_click=lambda e, i=item["id"]: self.open_confirm_step(i))
+                    complete_batch_btn = ft.ElevatedButton(self.t("Archive"), style=ft.ButtonStyle(color="#FFFFFF", bgcolor=SUCCESS, shape=ft.RoundedRectangleBorder(radius=6), padding=ft.padding.symmetric(horizontal=12, vertical=0), text_style=ft.TextStyle(size=s(16), weight=ft.FontWeight.W_700)), height=40, on_click=lambda e, i=item["id"]: self.open_complete_batch(i))
 
-                    add_qty_btn = ft.IconButton(ft.Icons.ADD, icon_color=PRIMARY, bgcolor="#EFF6FF", tooltip=self.t("Add Quantity"), padding=0, width=30, height=30, on_click=lambda e, i=item["id"]: self.open_add_qty(i))
-                    split_btn = ft.IconButton(ft.Icons.CALL_SPLIT, icon_color=WARNING, bgcolor="#FFFBEB", tooltip=self.t("Split Batch"), padding=0, width=30, height=30, on_click=lambda e, i=item["id"]: self.open_split(i))
-                    merge_btn = ft.IconButton(ft.Icons.CALL_MERGE, icon_color=SUCCESS, bgcolor="#ECFDF5", tooltip=self.t("Merge Batch"), padding=0, width=30, height=30, on_click=lambda e, i=item["id"]: self.open_merge(i))
+                    add_qty_btn = ft.IconButton(ft.Icons.ADD, icon_color=PRIMARY, bgcolor="#EFF6FF", tooltip=self.t("Add Quantity"), padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item["id"]: self.open_add_qty(i))
+                    split_btn = ft.IconButton(ft.Icons.CALL_SPLIT, icon_color=WARNING, bgcolor="#FFFBEB", tooltip=self.t("Split Batch"), padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item["id"]: self.open_split(i))
+                    merge_btn = ft.IconButton(ft.Icons.CALL_MERGE, icon_color=SUCCESS, bgcolor="#ECFDF5", tooltip=self.t("Merge Batch"), padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item["id"]: self.open_merge(i))
 
-                    card_content = [ft.Row([batch_display, qty_field, add_qty_btn, ft.Container(expand=True), move_btn, restock_btn], spacing=5)]
+                    card_content = [ft.Row([batch_display, qty_field, add_qty_btn, ft.Container(expand=True), move_btn, restock_btn], spacing=6)]
                     
                     if item.get("parent"):
-                        card_content.append(ft.Container(padding=ft.padding.only(left=5, top=2), content=ft.Row([
-                            ft.Icon(ft.Icons.CALL_SPLIT, size=10, color=WARNING),
-                            ft.Text(f"{self.t('Split from:')} {item['parent']}", size=s(10), color=WARNING, weight=ft.FontWeight.W_500)
+                        card_content.append(ft.Container(padding=ft.padding.only(left=5, top=4), content=ft.Row([
+                            ft.Icon(ft.Icons.CALL_SPLIT, size=12, color=WARNING),
+                            ft.Text(f"{self.t('Split from:')} {item['parent']}", size=s(12), color=WARNING, weight=ft.FontWeight.W_500)
                         ])))
                         
                     card_content.extend([
-                        ft.Divider(height=6, color="#F1F5F9"), 
+                        ft.Divider(height=10, color="#F1F5F9"), 
                         steps_visual, 
-                        ft.Container(height=2), 
-                        ft.Row([ft.Text("Inject manual step:", size=s(10), color=TEXT_SUB, weight=ft.FontWeight.W_500), add_step_btn], alignment=ft.MainAxisAlignment.START)
+                        ft.Container(height=4), 
+                        # --- ADDED self.t() TO THIS TEXT ---
+                        ft.Row([ft.Text(self.t("Inject manual step:"), size=s(12), color=TEXT_SUB, weight=ft.FontWeight.W_500), add_step_btn], alignment=ft.MainAxisAlignment.START)
                     ])
 
                     left_actions = [complete_batch_btn, split_btn, merge_btn]
@@ -426,37 +465,37 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         left_actions.append(undo_btn)
 
                     action_content = ft.Row([
-                        ft.Row(left_actions, spacing=2),
+                        ft.Row(left_actions, spacing=4),
                         next_btn
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
 
                     card = ft.Container(
                         bgcolor=CARD_BG, border_radius=12, border=ft.border.all(1, BORDER), shadow=ft.BoxShadow(blur_radius=10, color="#00000008", offset=ft.Offset(0, 4)), 
                         content=ft.Column([
-                            ft.Container(padding=8, content=ft.Column(card_content, spacing=0)), 
-                            ft.Container(padding=6, bgcolor="#F8FAFC", border_radius=ft.border_radius.only(bottom_left=12, bottom_right=12), border=ft.border.only(top=ft.border.BorderSide(1, BORDER)), 
+                            ft.Container(padding=12, content=ft.Column(card_content, spacing=0)), 
+                            ft.Container(padding=10, bgcolor="#F8FAFC", border_radius=ft.border_radius.only(bottom_left=12, bottom_right=12), border=ft.border.only(top=ft.border.BorderSide(1, BORDER)), 
                                 content=action_content
                             )
                         ], spacing=0)
                     )
                     
-                    col_span = {"xs": 12, "md": 6, "xl": 4} if len(g_items) > 1 else {"xs": 12, "sm": 8, "md": 6, "xl": 4}
+                    col_span = {"xs": 12, "sm": 12, "md": 6, "lg": 6, "xl": 6} 
                     built_cards.append(ft.Column(col=col_span, controls=[card]))
 
                 if len(g_items) == 1 and g_items[0]["name"] == base_name:
                     batch_row.controls.append(built_cards[0])
                 else:
                     group_header = ft.Container(
-                        padding=ft.padding.only(bottom=2, left=5, right=5),
+                        padding=ft.padding.only(bottom=5, left=5, right=5),
                         content=ft.Row([
-                            ft.Icon(ft.Icons.ACCOUNT_TREE, color=PRIMARY, size=20),
-                            ft.Text(f"{self.t('Batch Group:')} {base_name}", size=s(16), weight=ft.FontWeight.W_800, color=TEXT_MAIN)
+                            ft.Icon(ft.Icons.ACCOUNT_TREE, color=PRIMARY, size=24),
+                            ft.Text(f"{self.t('Batch Group:')} {base_name}", size=s(18), weight=ft.FontWeight.W_800, color=TEXT_MAIN)
                         ])
                     )
-                    children_row = ft.Container(content=ft.ResponsiveRow(controls=built_cards, columns=12, spacing=10, run_spacing=10), padding=ft.padding.all(0))
+                    children_row = ft.Container(content=ft.ResponsiveRow(controls=built_cards, columns=12, spacing=12, run_spacing=12), padding=ft.padding.all(0))
                     
                     group_container = ft.Container(
-                        bgcolor="#F8FAFC", border=ft.border.all(1, "#CBD5E1"), border_radius=12, padding=8,
+                        bgcolor="#F8FAFC", border=ft.border.all(1, "#CBD5E1"), border_radius=12, padding=12,
                         content=ft.Column([
                             group_header, 
                             children_row
@@ -466,7 +505,6 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
 
             process_btn = ft.ElevatedButton(self.t("Extract to Batch"), icon=ft.Icons.PLAY_ARROW, style=ft.ButtonStyle(color="#FFFFFF", bgcolor=TEXT_MAIN, shape=ft.RoundedRectangleBorder(radius=8), padding=ft.padding.symmetric(horizontal=15)), on_click=lambda e, p=ptype: self.open_process_dialog(p), disabled=(curr_stock <= 0))
             
-            # --- FIX: Single Horizontal Scrollable Row for Stocks (Sorted Highest to Lowest) ---
             stock_badges = []
             
             sorted_products_by_stock = sorted(
@@ -500,7 +538,8 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                 content=ft.Row([
                     ft.Container(width=1, height=24, bgcolor="#E2E8F0", margin=ft.margin.symmetric(horizontal=10)),
                     ft.Icon(ft.Icons.ALL_INBOX_ROUNDED, color="#64748B", size=18),
-                    ft.Text(self.t("All Available Stocks:"), color="#64748B", size=s(13), weight=ft.FontWeight.W_800),
+                    # --- ADDED self.t() TO THIS TEXT ---
+                    ft.Text(self.t("Global Raw Stock:"), color="#64748B", size=s(13), weight=ft.FontWeight.W_800),
                     ft.Container(content=ft.Row(stock_badges, spacing=8, scroll=ft.ScrollMode.AUTO), expand=True)
                 ], alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER)
             )

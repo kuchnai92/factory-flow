@@ -17,40 +17,43 @@ class DashboardView(ft.Container):
         self.expand = True
         self.visible = False
         
-        # --- DECREASED MAIN PADDING ---
         self.padding = 10 
         
         def s(size): return int(size * self.scale_factor)
         self.s = s
 
-        self.dash_title = ft.Text(self.t("Global Overview"), size=s(24), weight=ft.FontWeight.W_800, color="#0F172A")
+        self.dash_title = ft.Text(self.t("Global Overview"), size=s(26), weight=ft.FontWeight.W_800, color="#0F172A")
         
-        # --- DECREASED SPACING BETWEEN DASHBOARD CARDS ---
         self.dash_list = ft.Column(spacing=8) 
 
-        self.dash_start_date = datetime.now()
-        self.dash_end_date = datetime.now()
+        self.dash_date = datetime.now()
 
-        self.dash_start_btn = ft.ElevatedButton(f"{self.t('Start:')} {self.dash_start_date.strftime('%d %b %Y')}", icon=ft.Icons.CALENDAR_TODAY, elevation=0, style=ft.ButtonStyle(color="#0F172A", bgcolor="#F1F5F9", shape=ft.RoundedRectangleBorder(radius=8)))
-        self.dash_end_btn = ft.ElevatedButton(f"{self.t('End:')} {self.dash_end_date.strftime('%d %b %Y')}", icon=ft.Icons.CALENDAR_TODAY, elevation=0, style=ft.ButtonStyle(color="#0F172A", bgcolor="#F1F5F9", shape=ft.RoundedRectangleBorder(radius=8)))
+        self.dash_date_btn = ft.ElevatedButton(
+            f"{self.t('Date:')} {self.dash_date.strftime('%d %b %Y')}", 
+            icon=ft.Icons.CALENDAR_TODAY, 
+            elevation=0, 
+            style=ft.ButtonStyle(color="#0F172A", bgcolor="#F1F5F9", shape=ft.RoundedRectangleBorder(radius=8))
+        )
 
-        self.dash_start_picker = ft.DatePicker(first_date=datetime(2020, 1, 1), last_date=datetime(2050, 12, 31), current_date=self.dash_start_date, on_change=self.on_start_change)
-        self.dash_end_picker = ft.DatePicker(first_date=datetime(2020, 1, 1), last_date=datetime(2050, 12, 31), current_date=self.dash_end_date, on_change=self.on_end_change)
+        self.dash_date_picker = ft.DatePicker(
+            first_date=datetime(2020, 1, 1), 
+            last_date=datetime(2050, 12, 31), 
+            current_date=self.dash_date, 
+            on_change=self.on_date_change
+        )
         
-        if self.dash_start_picker not in self.page.overlay:
-            self.page.overlay.extend([self.dash_start_picker, self.dash_end_picker])
+        if self.dash_date_picker not in self.page.overlay:
+            self.page.overlay.append(self.dash_date_picker)
 
-        self.dash_start_btn.on_click = lambda _: self.page.open(self.dash_start_picker) if hasattr(self.page, "open") else self.dash_start_picker.pick_date()
-        self.dash_end_btn.on_click = lambda _: self.page.open(self.dash_end_picker) if hasattr(self.page, "open") else self.dash_end_picker.pick_date()
+        self.dash_date_btn.on_click = lambda _: self.page.open(self.dash_date_picker) if hasattr(self.page, "open") else self.dash_date_picker.pick_date()
 
         self.filter_container = ft.Container(
             padding=s(10), bgcolor="#FFFFFF", border_radius=12, border=ft.border.all(1, "#E2E8F0"), shadow=ft.BoxShadow(blur_radius=10, color="#00000005", offset=ft.Offset(0, 2)), 
             content=ft.Row([
                 ft.Row([ft.Icon(ft.Icons.FILTER_ALT, color="#64748B", size=s(20)), ft.Text(self.t("Activity Date Filter:"), color="#64748B", weight=ft.FontWeight.W_600, size=s(15))]),
                 ft.Row([
-                    self.dash_start_btn,
-                    self.dash_end_btn,
-                    ft.IconButton(ft.Icons.CLOSE, on_click=self.clear_dates, tooltip=self.t("Clear Dates"), icon_color="#EF4444", bgcolor="#FEF2F2")
+                    self.dash_date_btn,
+                    ft.IconButton(ft.Icons.RESTORE, on_click=self.reset_date, tooltip=self.t("Reset to Today"), icon_color="#3B82F6", bgcolor="#EFF6FF")
                 ], wrap=True) 
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True)
         )
@@ -64,28 +67,20 @@ class DashboardView(ft.Container):
         ], expand=True, scroll=ft.ScrollMode.AUTO)
 
     def update_buttons(self):
-        self.dash_start_btn.text = f"{self.t('Start:')} {self.dash_start_date.strftime('%d %b %Y') if self.dash_start_date else self.t('Any')}"
-        self.dash_end_btn.text = f"{self.t('End:')} {self.dash_end_date.strftime('%d %b %Y') if self.dash_end_date else self.t('Any')}"
+        self.dash_date_btn.text = f"{self.t('Date:')} {self.dash_date.strftime('%d %b %Y')}"
         try:
-            self.dash_start_btn.update()
-            self.dash_end_btn.update()
+            self.dash_date_btn.update()
         except: pass
 
-    def on_start_change(self, e): 
-        self.dash_start_date = self.dash_start_picker.value
-        self.update_buttons()
-        self.render()
+    def on_date_change(self, e): 
+        if self.dash_date_picker.value:
+            self.dash_date = self.dash_date_picker.value
+            self.update_buttons()
+            self.render()
 
-    def on_end_change(self, e): 
-        self.dash_end_date = self.dash_end_picker.value
-        self.update_buttons()
-        self.render()
-
-    def clear_dates(self, e): 
-        self.dash_start_date = datetime.now()
-        self.dash_end_date = datetime.now()
-        self.dash_start_picker.value = self.dash_start_date
-        self.dash_end_picker.value = self.dash_end_date
+    def reset_date(self, e): 
+        self.dash_date = datetime.now()
+        self.dash_date_picker.value = self.dash_date
         self.update_buttons()
         self.render()
 
@@ -102,10 +97,15 @@ class DashboardView(ft.Container):
                         if status_type == "completed" and item.get("entry_type") != "Batch": continue
                         valid_logs = []
                         for log in item.get("timeline", []):
+                            step_text = log.get("step", "")
+                            if "Started:" not in step_text and "Completed:" not in step_text and "Batch Finalized" not in step_text:
+                                continue
+
                             log_time = parse_date(log["time"])
-                            if self.dash_start_date and log_time.date() < self.dash_start_date.date(): continue
-                            if self.dash_end_date and log_time.date() > self.dash_end_date.date(): continue
+                            if self.dash_date and log_time.date() != self.dash_date.date(): continue
+                            
                             valid_logs.append(log)
+                            
                         if not valid_logs: continue 
                         valid_logs.reverse()
                         latest_time = parse_date(valid_logs[0]["time"])
@@ -114,7 +114,7 @@ class DashboardView(ft.Container):
         dashboard_items.sort(key=lambda x: x["latest_time"], reverse=True)
         
         if not dashboard_items:
-            self.dash_list.controls.append(ft.Container(padding=20, alignment=ft.alignment.center, content=ft.Text(self.t("No active or completed processes found in this date range."), color="#64748B", size=s(16))))
+            self.dash_list.controls.append(ft.Container(padding=20, alignment=ft.alignment.center, content=ft.Text(self.t("No active or completed processes found for this specific date."), color="#64748B", size=s(16))))
             try: self.dash_list.update()
             except: pass
             return
@@ -128,27 +128,55 @@ class DashboardView(ft.Container):
                 color = "#0F172A" if i == 0 else "#64748B"
                 weight = ft.FontWeight.W_600 if i == 0 else ft.FontWeight.NORMAL
                 dt_obj = parse_date(log['time'])
-                time_formatted = dt_obj.strftime("%d %b %Y, %I:%M %p")
-                qty_display = f"  [{log['qty']:g} {self.t('units')}]" if 'qty' in log else ""
+                
+                time_formatted = dt_obj.strftime("%d %b %Y") 
+                
+                # --- NEW TEXT ISOLATION LOGIC ---
+                raw_step = log.get('step', '')
+                prefix = ""
+                custom_name = raw_step
+
+                if raw_step.startswith("Started:"):
+                    prefix = "Started:"
+                    custom_name = raw_step[8:].strip()
+                elif raw_step.startswith("Completed:"):
+                    prefix = "Completed:"
+                    custom_name = raw_step[10:].strip()
+                elif "Batch Finalized" in raw_step:
+                    prefix = "Batch Finalized & Archived"
+                    custom_name = ""
+
+                translated_prefix = self.t(prefix) + " " if prefix else ""
+                qty_str = f"  [{log['qty']:g} {self.t('units')}]" if 'qty' in log else ""
+                
+                step_font_size = 19
+                
+                text_spans = []
+                if translated_prefix:
+                    text_spans.append(ft.TextSpan(text=translated_prefix))
+                if custom_name:
+                    # ONLY THE CUSTOM STEP NAME IS INCREASED AND BOLDED
+                    text_spans.append(ft.TextSpan(text=custom_name, style=ft.TextStyle(size=s(step_font_size + 2), weight=ft.FontWeight.W_800)))
+                if qty_str:
+                    text_spans.append(ft.TextSpan(text=qty_str, style=ft.TextStyle(size=s(step_font_size - 3), color="#64748B")))
                 
                 timeline_controls.append(
                     ft.Row([
-                        ft.Icon(ft.Icons.CIRCLE, size=s(8), color="#CBD5E1"), 
-                        ft.Text(f"{log['step']}{qty_display}", size=s(16), color=color, weight=weight, expand=True), 
-                        ft.Text(time_formatted, size=s(12), color="#94A3B8")
-                    ], spacing=s(6))
+                        ft.Icon(ft.Icons.CIRCLE, size=s(10), color="#CBD5E1"), 
+                        ft.Text(spans=text_spans, size=s(step_font_size), color=color, weight=weight, expand=True), 
+                        ft.Text(time_formatted, size=s(14), color="#94A3B8")
+                    ], spacing=s(8))
                 )
                 
             subtitle_col = ft.Column([
-                ft.Container(height=s(2)), 
+                ft.Container(height=s(4)), 
                 ft.Row([
-                    ft.Icon(ft.Icons.LOCATION_ON, size=s(14), color="#94A3B8"), 
-                    ft.Text(f"{loc_label}: {d_item['fac']} → {d_item['loc']} → {d_item['sub_name']}", size=s(14), color="#64748B", weight=ft.FontWeight.W_600, expand=True)
-                ], spacing=s(4)), 
-                ft.Container(padding=ft.padding.only(left=s(5), top=s(2)), content=ft.Column(timeline_controls, spacing=s(2)))
+                    ft.Icon(ft.Icons.LOCATION_ON, size=s(16), color="#94A3B8"), 
+                    ft.Text(f"{loc_label}: {d_item['fac']} → {d_item['loc']} → {d_item['sub_name']}", size=s(16), color="#64748B", weight=ft.FontWeight.W_600, expand=True)
+                ], spacing=s(6)), 
+                ft.Container(padding=ft.padding.only(left=s(6), top=s(4)), content=ft.Column(timeline_controls, spacing=s(4)))
             ], spacing=0)
 
-            # --- NEW BATCH CHIP AND BIG BOLD PRODUCT NAME LOGIC ---
             product_name = item.get('type', 'Unknown')
             display_tag = str(item.get('name', '')).replace("Batch ", "")
 
@@ -163,39 +191,36 @@ class DashboardView(ft.Container):
                 chip_color = "#059669"
                 chip_text = self.t("Completed")
 
-            status_chip = ft.Container(padding=ft.padding.symmetric(horizontal=s(8), vertical=s(2)), bgcolor=chip_bg, border_radius=12, content=ft.Text(chip_text, size=s(12), color=chip_color, weight=ft.FontWeight.BOLD))
+            status_chip = ft.Container(padding=ft.padding.symmetric(horizontal=s(8), vertical=s(4)), bgcolor=chip_bg, border_radius=12, content=ft.Text(chip_text, size=s(13), color=chip_color, weight=ft.FontWeight.BOLD))
             
-            # --- The Blue Locations-style Batch Badge ---
             batch_badge = ft.Container(
-                padding=ft.padding.symmetric(horizontal=s(10), vertical=s(2)),
+                padding=ft.padding.symmetric(horizontal=s(10), vertical=s(4)),
                 bgcolor="#EFF6FF",
                 border_radius=6,
                 content=ft.Row([
-                    ft.Icon(ft.Icons.TAG, size=s(14), color="#2563EB"),
-                    ft.Text(f"{self.t('Batch')} {display_tag}", size=s(15), weight=ft.FontWeight.W_900, color="#2563EB")
+                    ft.Icon(ft.Icons.TAG, size=s(16), color="#2563EB"),
+                    ft.Text(f"{self.t('Batch')} {display_tag}", size=s(16), weight=ft.FontWeight.W_900, color="#2563EB")
                 ], spacing=s(4), tight=True)
             )
 
-            # --- Much Bigger, Bolder Product Name ---
-            product_title = ft.Text(product_name, size=s(22), weight=ft.FontWeight.W_900, color="#0F172A")
+            product_title = ft.Text(product_name, size=s(24), weight=ft.FontWeight.W_900, color="#0F172A")
 
             header_row = ft.Row([
                 product_title,
                 batch_badge,
                 ft.Container(expand=True), 
                 status_chip
-            ], spacing=s(10), alignment=ft.MainAxisAlignment.START)
+            ], spacing=s(12), alignment=ft.MainAxisAlignment.START)
 
-            # --- DECREASED PADDING INSIDE THE DASHBOARD CARD FOR TIGHTER FIT ---
             dash_card = ft.Container(
-                bgcolor="#FFFFFF", border_radius=10, padding=s(12), border=ft.border.all(1, "#E2E8F0"), shadow=ft.BoxShadow(blur_radius=8, color="#00000005", offset=ft.Offset(0, 2)), 
+                bgcolor="#FFFFFF", border_radius=12, padding=s(16), border=ft.border.all(1, "#E2E8F0"), shadow=ft.BoxShadow(blur_radius=8, color="#00000005", offset=ft.Offset(0, 2)), 
                 content=ft.Row([
-                    ft.Container(padding=s(8), bgcolor="#F8FAFC", border_radius=8, content=ft.Icon(ft.Icons.INVENTORY_2_OUTLINED, color=icon_color, size=s(20))),
+                    ft.Container(padding=s(10), bgcolor="#F8FAFC", border_radius=10, content=ft.Icon(ft.Icons.INVENTORY_2_OUTLINED, color=icon_color, size=s(24))),
                     ft.Column([
                         header_row,
                         subtitle_col
-                    ], expand=True, spacing=s(4)),
-                ], vertical_alignment=ft.CrossAxisAlignment.START, spacing=s(10))
+                    ], expand=True, spacing=s(6)),
+                ], vertical_alignment=ft.CrossAxisAlignment.START, spacing=s(12))
             )
             self.dash_list.controls.append(dash_card)
         try: self.dash_list.update()

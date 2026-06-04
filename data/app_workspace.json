@@ -2,11 +2,15 @@
     "products_config": {
         "\u06af\u0627\u062c\u0631": {
             "steps": [
+                "hello brother",
+                "4",
                 "hye",
                 "\u0627\u0628\u0627\u0644\u0627",
+                "why",
                 "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
                 "\u067e\u06a9\u0627 \u06cc\u06cc",
                 "s",
+                "12345678",
                 "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
                 "hello",
                 "asd",
@@ -18,9 +22,15 @@
                 "hello",
                 "hye",
                 "h",
-                "t"
+                "t",
+                "1",
+                "2",
+                "pani change",
+                "3",
+                "hello",
+                "new"
             ],
-            "stock": 30.0,
+            "stock": 0.0,
             "stock_history": [
                 {
                     "qty": 20.0,
@@ -31,7 +41,7 @@
                     "date": "04 Jun 2026"
                 },
                 {
-                    "qty": -10.0,
+                    "qty": -5.0,
                     "date": "04 Jun 2026"
                 }
             ]
@@ -41,21 +51,37 @@
             "stock": 33.0
         },
         "fsdf": {
-            "steps": [],
-            "stock": 53.0
+            "steps": [
+                "s",
+                "bye"
+            ],
+            "stock": 49.0
         },
         "sdfs": {
-            "steps": [],
-            "stock": 34.0
+            "steps": [
+                "ok"
+            ],
+            "stock": 33.0
         },
         "sfd": {
             "steps": [],
             "stock": 2.0
         },
         "sd": {
-            "steps": [],
-            "stock": 0.0,
-            "stock_history": []
+            "steps": [
+                "nice",
+                "ok",
+                "123",
+                "2134",
+                "55555"
+            ],
+            "stock": 25.0,
+            "stock_history": [
+                {
+                    "qty": 25.0,
+                    "date": "05 Jun 2026"
+                }
+            ]
         }
     },
     "factories": [
@@ -69,7 +95,8 @@
     "level3_data": {
         "1::h": {
             "tabs": [
-                "i"
+                "i",
+                "hj"
             ],
             "active_tab": 0,
             "data": {
@@ -78,47 +105,6 @@
                         "\u06af\u0627\u062c\u0631": 3.0
                     },
                     "active": [
-                        {
-                            "id": "5a51fbad-b665-4a23-bf6b-c6b5fb292acc",
-                            "type": "\u06af\u0627\u062c\u0631",
-                            "name": "Batch 2",
-                            "quantity": 7.0,
-                            "steps": [
-                                "\u0627\u0628\u0627\u0644\u0627",
-                                "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
-                                "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
-                                "\u067e\u06a9\u0627 \u06cc\u06cc"
-                            ],
-                            "step_idx": 1,
-                            "is_processing": false,
-                            "timeline": [
-                                {
-                                    "step": "Created from Stock",
-                                    "time": "2026-03-26 12:15 PM",
-                                    "qty": 1.0
-                                },
-                                {
-                                    "step": "Added 10 units (Free Stock)",
-                                    "time": "2026-03-28 01:45 AM",
-                                    "qty": 11.0
-                                },
-                                {
-                                    "step": "Started: \u0627\u0628\u0627\u0644\u0627",
-                                    "time": "2026-03-28 01:45 AM",
-                                    "qty": 11.0
-                                },
-                                {
-                                    "step": "Removed 4 units (Free/Discarded)",
-                                    "time": "2026-03-28 01:46 AM",
-                                    "qty": 7.0
-                                },
-                                {
-                                    "step": "Completed: \u0627\u0628\u0627\u0644\u0627",
-                                    "time": "2026-03-28 01:46 AM",
-                                    "qty": 7.0
-                                }
-                            ]
-                        },
                         {
                             "id": "2701f7b4-c19f-4956-b2c7-f50296580c12",
                             "type": "dsgs",
@@ -134,15 +120,68 @@
                                     "qty": 1.0
                                 }
                             ]
-                        }
-                    ],
-                    "history": [
+                        },
                         {
-                            "entry_type": "Stock",
-                            "type": "\u06af\u0627\u062c\u0631",
-                            "action": "Added to Stock",
-                            "quantity": 10.0,
-                            "date": "2026-03-25 08:49 PM"
+                            "id": "a4c1db53-a871-436f-919b-00280ca28242",
+                            "type": "fsdf",
+                            "name": "Batch 1",
+                            "quantity": 1.0,
+                            "steps": [],
+                            "step_idx": 0,
+                            "is_processing": false,
+                            "timeline": [
+                                {
+                                    "step": "Created from Stock",
+                                    "time": "2026-06-04 01:48 PM",
+                                    "qty": 1.0
+                                }
+                            ]
+                        },
+                        {
+                            "id": "32188707-0d1b-483e-bbe7-fa2e78129a3b",
+                            "type": "fsdf",
+                            "name": "Batch 2",
+                            "quantity": 3.0,
+                            "steps": [
+                                "s"
+                            ],
+                            "step_idx": 1,
+                            "is_processing": false,
+                            "timeline": [
+                                {
+                                    "step": "Created from Stock",
+                                    "time": "2026-06-04 01:48 PM",
+                                    "qty": 3.0
+                                },
+                                {
+                                    "step": "Started: s",
+                                    "idx": 0,
+                                    "time": "2026-06-04 01:55 PM",
+                                    "qty": 3.0
+                                },
+                                {
+                                    "step": "Completed: s",
+                                    "idx": 0,
+                                    "time": "2026-06-04 01:55 PM",
+                                    "qty": 3.0
+                                }
+                            ]
+                        },
+                        {
+                            "id": "44d68fdd-66ce-459d-9fc1-e6260609175c",
+                            "type": "sdfs",
+                            "name": "Batch 1",
+                            "quantity": 1.0,
+                            "steps": [],
+                            "step_idx": 0,
+                            "is_processing": false,
+                            "timeline": [
+                                {
+                                    "step": "Created from Stock",
+                                    "time": "2026-06-04 11:57 PM",
+                                    "qty": 1.0
+                                }
+                            ]
                         },
                         {
                             "id": "745983b5-94c9-4040-941a-02bfbd11f065",
@@ -209,12 +248,304 @@
                                     "step": "Batch Finalized & Archived",
                                     "time": "2026-03-26 10:27 AM",
                                     "qty": 6.0
+                                },
+                                {
+                                    "step": "Reverted from Archive",
+                                    "time": "2026-06-05 12:17 AM",
+                                    "qty": 6.0
+                                }
+                            ]
+                        },
+                        {
+                            "id": "136513ce-2b79-427f-b007-e9f15b4692f9",
+                            "type": "\u06af\u0627\u062c\u0631",
+                            "name": "Batch 3",
+                            "quantity": 1.0,
+                            "steps": [
+                                "hello brother",
+                                "4",
+                                "hye",
+                                "\u0627\u0628\u0627\u0644\u0627",
+                                "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+                                "\u067e\u06a9\u0627 \u06cc\u06cc",
+                                "s",
+                                "12345678",
+                                "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+                                "hello",
+                                "asd",
+                                "hello",
+                                "hye",
+                                "bye",
+                                "h",
+                                "h",
+                                "hello",
+                                "hye",
+                                "h",
+                                "t",
+                                "1",
+                                "2",
+                                "pani change",
+                                "3"
+                            ],
+                            "step_idx": 1,
+                            "is_processing": false,
+                            "timeline": [
+                                {
+                                    "step": "Created from Stock",
+                                    "time": "2026-06-05 12:21 AM",
+                                    "qty": 1.0
+                                },
+                                {
+                                    "step": "Started: hello brother",
+                                    "idx": 0,
+                                    "time": "2026-06-05 12:21 AM",
+                                    "qty": 1.0
+                                },
+                                {
+                                    "step": "Completed: hello brother",
+                                    "idx": 0,
+                                    "time": "2026-06-05 12:21 AM",
+                                    "qty": 1.0
+                                }
+                            ]
+                        },
+                        {
+                            "id": "05a8a26d-1c32-4c55-9c66-4e0a6cdf2861",
+                            "type": "\u06af\u0627\u062c\u0631",
+                            "name": "Batch 4",
+                            "quantity": 25.0,
+                            "steps": [
+                                "hello brother",
+                                "4",
+                                "hye",
+                                "\u0627\u0628\u0627\u0644\u0627",
+                                "why",
+                                "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+                                "\u067e\u06a9\u0627 \u06cc\u06cc",
+                                "s",
+                                "12345678",
+                                "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+                                "hello",
+                                "asd",
+                                "hello",
+                                "hye",
+                                "bye",
+                                "h",
+                                "h",
+                                "hello",
+                                "hye",
+                                "h",
+                                "t",
+                                "1",
+                                "2",
+                                "pani change",
+                                "3",
+                                "hello"
+                            ],
+                            "step_idx": 0,
+                            "is_processing": false,
+                            "timeline": [
+                                {
+                                    "step": "Created from Stock",
+                                    "time": "2026-06-05 01:10 AM",
+                                    "qty": 25.0
+                                }
+                            ]
+                        },
+                        {
+                            "id": "d509cfaa-b418-489c-bfa2-d33b86b64b6e",
+                            "type": "\u06af\u0627\u062c\u0631",
+                            "name": "Batch 5",
+                            "quantity": 24.0,
+                            "steps": [
+                                "new",
+                                "hello brother",
+                                "4",
+                                "hye",
+                                "\u0627\u0628\u0627\u0644\u0627",
+                                "why",
+                                "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+                                "\u067e\u06a9\u0627 \u06cc\u06cc",
+                                "s",
+                                "12345678",
+                                "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+                                "hello",
+                                "asd",
+                                "hello",
+                                "hye",
+                                "bye",
+                                "h",
+                                "h",
+                                "hello",
+                                "hye",
+                                "h",
+                                "t",
+                                "1",
+                                "2",
+                                "pani change",
+                                "3",
+                                "hello"
+                            ],
+                            "step_idx": 2,
+                            "is_processing": false,
+                            "timeline": [
+                                {
+                                    "step": "Created from Stock",
+                                    "time": "2026-06-05 01:10 AM",
+                                    "qty": 9.0
+                                },
+                                {
+                                    "step": "Started: hello brother",
+                                    "idx": 0,
+                                    "time": "2026-06-05 01:11 AM",
+                                    "qty": 9.0
+                                },
+                                {
+                                    "step": "Completed: hello brother",
+                                    "idx": 0,
+                                    "time": "2026-06-05 01:11 AM",
+                                    "qty": 9.0
+                                },
+                                {
+                                    "step": "Started: 4",
+                                    "idx": 1,
+                                    "time": "2026-06-05 01:11 AM",
+                                    "qty": 9.0
+                                },
+                                {
+                                    "step": "Completed: 4",
+                                    "idx": 1,
+                                    "time": "2026-06-05 01:11 AM",
+                                    "qty": 9.0
+                                },
+                                {
+                                    "step": "Added 15 units (Free Stock)",
+                                    "time": "2026-06-05 01:11 AM",
+                                    "qty": 24.0
+                                },
+                                {
+                                    "step": "Started: hye",
+                                    "idx": 2,
+                                    "time": "2026-06-05 01:11 AM",
+                                    "qty": 24.0
+                                },
+                                {
+                                    "step": "Completed: hye",
+                                    "idx": 2,
+                                    "time": "2026-06-05 01:11 AM",
+                                    "qty": 24.0
+                                },
+                                {
+                                    "step": "Relocated: [1 > h > hj] \u2192 [1 > h > hj]",
+                                    "time": "2026-06-05 01:12 AM",
+                                    "qty": 24.0
+                                },
+                                {
+                                    "step": "Relocated: [1 > h > hj] \u2192 [1 > h > i]",
+                                    "time": "2026-06-05 01:12 AM",
+                                    "qty": 24.0
+                                }
+                            ]
+                        }
+                    ],
+                    "history": [
+                        {
+                            "entry_type": "Stock",
+                            "type": "\u06af\u0627\u062c\u0631",
+                            "action": "Added to Stock",
+                            "quantity": 10.0,
+                            "date": "2026-03-25 08:49 PM"
+                        },
+                        {
+                            "id": "5a51fbad-b665-4a23-bf6b-c6b5fb292acc",
+                            "type": "\u06af\u0627\u062c\u0631",
+                            "name": "Batch 2",
+                            "quantity": 7.0,
+                            "steps": [
+                                "\u0627\u0628\u0627\u0644\u0627",
+                                "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+                                "\u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+                                "\u067e\u06a9\u0627 \u06cc\u06cc"
+                            ],
+                            "step_idx": 4,
+                            "is_processing": false,
+                            "timeline": [
+                                {
+                                    "step": "Created from Stock",
+                                    "time": "2026-03-26 12:15 PM",
+                                    "qty": 1.0
+                                },
+                                {
+                                    "step": "Added 10 units (Free Stock)",
+                                    "time": "2026-03-28 01:45 AM",
+                                    "qty": 11.0
+                                },
+                                {
+                                    "step": "Started: \u0627\u0628\u0627\u0644\u0627",
+                                    "time": "2026-03-28 01:45 AM",
+                                    "qty": 11.0
+                                },
+                                {
+                                    "step": "Removed 4 units (Free/Discarded)",
+                                    "time": "2026-03-28 01:46 AM",
+                                    "qty": 7.0
+                                },
+                                {
+                                    "step": "Completed: \u0627\u0628\u0627\u0644\u0627",
+                                    "time": "2026-03-28 01:46 AM",
+                                    "qty": 7.0
+                                },
+                                {
+                                    "step": "Started: \u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+                                    "idx": 1,
+                                    "time": "2026-06-05 12:16 AM",
+                                    "qty": 7.0
+                                },
+                                {
+                                    "step": "Completed: \u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+                                    "idx": 1,
+                                    "time": "2026-06-05 12:16 AM",
+                                    "qty": 7.0
+                                },
+                                {
+                                    "step": "Started: \u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+                                    "idx": 2,
+                                    "time": "2026-06-05 12:16 AM",
+                                    "qty": 7.0
+                                },
+                                {
+                                    "step": "Completed: \u067e\u0627\u0646\u06cc \u062a\u0628\u062f\u06cc\u0644",
+                                    "idx": 2,
+                                    "time": "2026-06-05 12:17 AM",
+                                    "qty": 7.0
+                                },
+                                {
+                                    "step": "Started: \u067e\u06a9\u0627 \u06cc\u06cc",
+                                    "idx": 3,
+                                    "time": "2026-06-05 12:17 AM",
+                                    "qty": 7.0
+                                },
+                                {
+                                    "step": "Completed: \u067e\u06a9\u0627 \u06cc\u06cc",
+                                    "idx": 3,
+                                    "time": "2026-06-05 12:17 AM",
+                                    "qty": 7.0
+                                },
+                                {
+                                    "step": "Batch Finalized & Archived",
+                                    "time": "2026-06-05 12:17 AM",
+                                    "qty": 7.0
                                 }
                             ],
-                            "date_completed": "2026-03-26 10:27 AM",
+                            "date_completed": "2026-06-05 12:17 AM",
                             "entry_type": "Batch"
                         }
                     ]
+                },
+                "hj": {
+                    "stock": {},
+                    "active": [],
+                    "history": []
                 }
             }
         }

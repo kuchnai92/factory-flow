@@ -21,10 +21,12 @@ except Exception as e:
 URDU_DICT = {
     "Global Overview": "عالمی جائزہ",
     "Activity Date Filter:": "سرگرمی کی تاریخ کا فلٹر:",
+    "Date:": "تاریخ:",
     "Start:": "شروع:",
     "End:": "ختم:",
     "Any": "کوئی نہیں",
     "Clear Dates": "تاریخیں صاف کریں",
+    "Reset to Today": "آج پر سیٹ کریں",
     "Username": "صارف نام",
     "Password": "پاس ورڈ",
     "Login": "لاگ ان",
@@ -45,7 +47,8 @@ URDU_DICT = {
     "Delete": "حذف کریں",
     "Confirm Delete": "حذف کرنے کی تصدیق",
     "Are you sure you want to delete this?": "کیا آپ واقعی اسے حذف کرنا چاہتے ہیں؟",
-    "No active or completed processes found in this date range.": "اس تاریخ کی حد میں کوئی عمل ملا۔",
+    "No active or completed processes found in this date range.": "اس تاریخ کی حد میں کوئی عمل نہیں ملا۔",
+    "No active or completed processes found for this specific date.": "اس مخصوص تاریخ کے لیے کوئی عمل نہیں ملا۔",
     "Current": "موجودہ",
     "Final": "حتمی",
     "In Process": "پروسیس میں",
@@ -147,7 +150,40 @@ URDU_DICT = {
     "Old password is incorrect!": "پرانا پاس ورڈ غلط ہے!",
     "New passwords do not match!": "نئے پاس ورڈ آپس میں نہیں ملتے!",
     "Updated successfully!": "کامیابی سے اپ ڈیٹ ہو گیا!",
-    "Incorrect password!": "غلط پاس ورڈ!"
+    "Incorrect password!": "غلط پاس ورڈ!",
+    "Started:": "شروع کی:",
+    "Completed:": "ختم ہوئی:",
+    "Created from Stock": "اسٹاک سے بنایا گیا",
+    "Added": "شامل کیا",
+    "Removed": "نکالا گیا",
+    "Reverted from Archive": "آرکائیو سے واپس لایا گیا",
+    "Inject manual step:": "دستی مرحلہ داخل کریں:",
+    "Product Directory": "مصنوعات کی فہرست",
+    "Total Products": "کل مصنوعات",
+    "Total Raw Stock": "کل خام اسٹاک",
+    "Needs Restock": "ری اسٹاک کی ضرورت ہے",
+    "Search Products...": "مصنوعات تلاش کریں...",
+    "Product Name": "پروڈکٹ کا نام",
+    "Available Stock": "دستیاب اسٹاک",
+    "Routing Steps": "راؤٹنگ کے مراحل",
+    "Actions": "ایکشنز",
+    "Basic Details": "بنیادی تفصیلات",
+    "Account Financials (Stock)": "اسٹاک کی تفصیلات",
+    "Opening Stock": "ابتدائی اسٹاک",
+    "Save Product": "پروڈکٹ محفوظ کریں",
+    "Manage Stock:": "اسٹاک کا انتظام:",
+    "Manage Stock": "اسٹاک کا انتظام",
+    "Stock History": "اسٹاک کی ہسٹری",
+    "Close": "بند کریں",
+    "No.": "نمبر",
+    "New Step Name": "نئے مرحلے کا نام",
+    "Drag and drop to reorder steps.": "مراحل کی ترتیب بدلنے کے لیے کھینچیں اور چھوڑیں۔",
+    "Done": "مکمل",
+    "Edit Stock Entry": "اسٹاک انٹری میں ترمیم کریں",
+    "New Quantity (+ or -)": "نئی مقدار (+ یا -)",
+    "Delete this stock entry? This will reverse its effect on the total stock.": "کیا آپ اس انٹری کو حذف کرنا چاہتے ہیں؟ یہ کل اسٹاک کو متاثر کرے گا۔",
+    "Steps": "مراحل",
+    "Global Raw Stock:": "عالمی خام اسٹاک:"
 }
 
 def main(page: ft.Page):
@@ -239,6 +275,8 @@ def main(page: ft.Page):
 
         def setup_app():
             nonlocal is_logged_in
+            sidebar = None 
+            
             page.controls.clear()
             page.overlay.clear()
             
@@ -337,7 +375,28 @@ def main(page: ft.Page):
             def edit_sidebar_loc(index): nonlocal target_edit_index; target_edit_index = index - 3; open_dialog("edit_loc", t("Edit Location"), factory_sub_locations[factories[active_factory_index]][target_edit_index])
             def get_current_l3_context(): return factories[active_factory_index], factory_sub_locations[factories[active_factory_index]][current_nav_index - 3]
             
-            location_view = LocationView(page, products_config, get_current_l3_context, factories, factory_sub_locations, level3_data, save_db, t, 1.0)
+            def update_sidebar_counts():
+                if not factories or active_factory_index >= len(factories): return {}
+                current_factory = factories[active_factory_index]
+                counts_dict = {}
+                for room in factory_sub_locations[current_factory]:
+                    key = f"{current_factory}::{room}"
+                    total = 0
+                    if key in level3_data:
+                        for sub_zone_data in level3_data[key]["data"].values():
+                            total += len(sub_zone_data.get("active", []))
+                    counts_dict[room] = total
+                if sidebar:
+                    sidebar.counts_dict = counts_dict
+                    try: sidebar.render()
+                    except: pass
+                return counts_dict
+
+            def on_location_data_changed():
+                save_db()
+                update_sidebar_counts()
+                
+            location_view = LocationView(page, products_config, get_current_l3_context, factories, factory_sub_locations, level3_data, on_location_data_changed, t, 1.0)
             if hasattr(location_view, 'overlay_controls'):
                 for ctrl in location_view.overlay_controls: page.overlay.append(ctrl)
 
@@ -420,14 +479,17 @@ def main(page: ft.Page):
                 if active_factory_index >= len(factories): active_factory_index = 0
 
                 current_factory = factories[active_factory_index]
-                header.update_tabs(factories, active_factory_index); sidebar.update_locations(factory_sub_locations[current_factory], current_nav_index)
+                
+                counts_dict = update_sidebar_counts()
+                
+                header.update_tabs(factories, active_factory_index) 
+                sidebar.update_locations(factory_sub_locations[current_factory], current_nav_index, counts_dict)
                 
                 dashboard_view.visible = False; product_matrix_view.visible = False; settings_view.visible = False; location_view.visible = False
 
                 if current_nav_index == 0: 
                     dashboard_view.render(); dashboard_view.visible = True
                 elif current_nav_index == 1: 
-                    # FIX: Explicitly forcing render_products ensures that expanded states correctly reapply!
                     product_matrix_view.render_products(); product_matrix_view.visible = True
                 elif current_nav_index == 2: 
                     settings_view.visible = True

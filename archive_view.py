@@ -25,7 +25,6 @@ class ArchiveLogView(ft.Container):
         self.expanded_groups = set()
         self.search_query = ""
         
-        # --- NEW: Revert Confirmation Dialog Setup ---
         self.revert_target_name = ""
         self.revert_confirm_btn = ft.ElevatedButton(
             self.t("Yes, Revert"), 
@@ -41,7 +40,6 @@ class ArchiveLogView(ft.Container):
                 self.revert_confirm_btn
             ]
         )
-        # ---------------------------------------------
         
         current_date_val = datetime.now()
         self.start_date = None
@@ -88,13 +86,10 @@ class ArchiveLogView(ft.Container):
             self.list_container
         ], expand=True)
 
-    # --- NEW: Revert Action Handlers ---
     def open_revert_dialog(self, batch_name):
         self.revert_target_name = batch_name
         self.page.open(self.revert_dialog)
         self.page.update()
-        try: self.revert_confirm_btn.focus()
-        except: pass
 
     def execute_revert(self, e):
         if self.revert_target_name and self.revert_cb:
@@ -102,7 +97,6 @@ class ArchiveLogView(ft.Container):
         self.page.close(self.revert_dialog)
         self.revert_target_name = ""
         self.page.update()
-    # -----------------------------------
 
     def open_start_date(self, e):
         if hasattr(self.page, "open"): self.page.open(self.start_picker)
@@ -164,7 +158,6 @@ class ArchiveLogView(ft.Container):
         s = self.s
         
         all_items = []
-        
         if self.view_mode == "archive":
             for item in self.tab_data.get("history", []):
                 all_items.append({"data": item, "status": "Completed"})
@@ -173,9 +166,10 @@ class ArchiveLogView(ft.Container):
                 all_items.append({"data": item, "status": "Active"})
             
         filtered_items = []
-        
         for wrapper in all_items:
             item = wrapper["data"]
+            
+            if item.get("entry_type") == "Stock": continue
             
             if self.search_query:
                 match = False
@@ -187,8 +181,7 @@ class ArchiveLogView(ft.Container):
                         if search_str in log.get("step", "").lower():
                             match = True
                             break
-                if not match:
-                    continue
+                if not match: continue
             
             dt_str = item.get("date") or item.get("date_completed")
             if not dt_str and "timeline" in item and item["timeline"]: dt_str = item["timeline"][-1]["time"]
@@ -198,89 +191,87 @@ class ArchiveLogView(ft.Container):
             filtered_items.append(wrapper)
 
         if not filtered_items:
-            self.list_container.controls.append(ft.Container(padding=40, alignment=ft.alignment.center, content=ft.Text(self.t("No tracking logs match the current filters."), color="#64748B", size=s(15))))
+            self.list_container.controls.append(ft.Container(padding=40, alignment=ft.alignment.center, content=ft.Text(self.t("No tracking logs match the current filters."), color="#64748B", size=s(16))))
             try: self.list_container.update() 
             except: pass
             return
 
-        consolidated_batches = {}
-        stock_logs = []
-        
         for wrapper in filtered_items:
             item = wrapper["data"]
-            status = wrapper["status"]
             
-            if item.get("entry_type") == "Stock": 
-                stock_logs.append(item)
-            else:
-                base_name = item["name"].split(".")[0]
-                if base_name not in consolidated_batches:
-                    consolidated_batches[base_name] = {
-                        "type": item["type"], 
-                        "name": base_name, 
-                        "quantity": 0, 
-                        "raw_timeline": {},
-                        "timeline": [],
-                        "parent": item.get("parent"),
-                        "statuses": set()
-                    }
-                
-                consolidated_batches[base_name]["quantity"] += item["quantity"]
-                consolidated_batches[base_name]["statuses"].add(status)
-                
-                for log in item["timeline"]:
-                    sig = (log["time"], log["step"])
-                    if sig not in consolidated_batches[base_name]["raw_timeline"]:
-                        new_log = copy.deepcopy(log)
-                        new_log["branches"] = {item["name"]} if item["name"] != base_name else {"Base"}
-                        consolidated_batches[base_name]["raw_timeline"][sig] = new_log
-                    else:
-                        consolidated_batches[base_name]["raw_timeline"][sig]["branches"].add(item["name"] if item["name"] != base_name else "Base")
+            step_font_size = 22 if self.view_mode == "archive" else 21
+            date_font_size = 17 if self.view_mode == "archive" else 16
 
-        for b_name, b_data in consolidated_batches.items():
-            for sig, log in b_data["raw_timeline"].items():
-                branches = log["branches"]
-                if len(branches) == 1 and "Base" not in branches:
-                    display_b_name = list(branches)[0].replace("Batch ", "")
-                    log["step"] = f"[{display_b_name}] {log['step']}"
-                
-                b_data["timeline"].append(log)
-            
-            b_data["timeline"].sort(key=lambda x: parse_date(x["time"]))
-            
-            should_expand = b_name in self.expanded_groups
             logs_ui = []
-            for i, log in enumerate(b_data["timeline"]):
-                color = "#0F172A" if i == len(b_data["timeline"])-1 else "#64748B"
-                weight = ft.FontWeight.W_600 if i == len(b_data["timeline"])-1 else ft.FontWeight.NORMAL
-                dt_obj = parse_date(log['time'])
-                time_formatted = dt_obj.strftime("%d %b %Y, %I:%M %p")
-                qty_display = f"  [{log['qty']:g} {self.t('units')}]" if 'qty' in log else ""
-                logs_ui.append(ft.Row([ft.Icon(ft.Icons.CIRCLE, size=12, color="#CBD5E1"), ft.Text(f"{log['step']}{qty_display}", size=s(18), color=color, weight=weight, expand=True), ft.Text(time_formatted, size=s(14), color="#94A3B8")]))
-            
-            lineage_badge = ft.Container()
-            parent = b_data.get("parent")
-            if parent and parent != b_name:
-                lineage_badge = ft.Container(padding=ft.padding.only(left=8, top=4), content=ft.Row([ft.Icon(ft.Icons.CALL_SPLIT, size=14, color="#F59E0B"), ft.Text(f"{self.t('Split from:')} {parent}", size=s(13), color="#F59E0B", weight=ft.FontWeight.W_600)]))
+            for log in item.get("timeline", []):
+                raw_step = log["step"]
+                
+                if "Started:" in raw_step or "Completed:" in raw_step or "Batch Finalized" in raw_step:
+                    dt_obj = parse_date(log['time'])
+                    time_formatted = dt_obj.strftime("%d %b %Y")
+                    
+                    # --- NEW TEXT ISOLATION LOGIC ---
+                    prefix = ""
+                    custom_name = raw_step
 
-            is_active = "Active" in b_data["statuses"]
+                    if raw_step.startswith("Started:"):
+                        prefix = "Started:"
+                        custom_name = raw_step[8:].strip()
+                    elif raw_step.startswith("Completed:"):
+                        prefix = "Completed:"
+                        custom_name = raw_step[10:].strip()
+                    elif "Batch Finalized" in raw_step:
+                        prefix = "Batch Finalized & Archived"
+                        custom_name = ""
+
+                    translated_prefix = self.t(prefix) + " " if prefix else ""
+                    qty_str = f"  [{log['qty']:g} {self.t('units')}]" if 'qty' in log else ""
+                    
+                    text_spans = []
+                    if translated_prefix:
+                        text_spans.append(ft.TextSpan(text=translated_prefix))
+                    if custom_name:
+                        # ONLY THE CUSTOM STEP NAME IS INCREASED AND BOLDED
+                        text_spans.append(ft.TextSpan(text=custom_name, style=ft.TextStyle(size=s(step_font_size + 2), weight=ft.FontWeight.W_800)))
+                    if qty_str:
+                        text_spans.append(ft.TextSpan(text=qty_str, style=ft.TextStyle(size=s(step_font_size - 3), color="#64748B")))
+                    
+                    logs_ui.append(
+                        ft.Row([
+                            ft.Icon(ft.Icons.CIRCLE, size=s(10), color="#CBD5E1"), 
+                            ft.Text(spans=text_spans, size=s(step_font_size), color="#0F172A", expand=True), 
+                            ft.Text(time_formatted, size=s(date_font_size), color="#94A3B8")
+                        ])
+                    )
+
+            is_active = (wrapper["status"] == "Active")
             status_color = "#2563EB" if is_active else "#10B981"
             status_text = "Live / In-Process" if is_active else "Archived / Complete"
             status_bg = "#EFF6FF" if is_active else "#F0FDF4"
             icon_type = ft.Icons.TRACK_CHANGES if is_active else ft.Icons.ARCHIVE_OUTLINED
             
-            status_badge = ft.Container(padding=ft.padding.symmetric(horizontal=12, vertical=6), bgcolor=status_bg, border_radius=16, content=ft.Text(status_text, color=status_color, size=s(13), weight=ft.FontWeight.BOLD))
+            status_badge = ft.Container(padding=ft.padding.symmetric(horizontal=12, vertical=6), bgcolor=status_bg, border_radius=16, content=ft.Text(status_text, color=status_color, size=s(14), weight=ft.FontWeight.BOLD))
 
             revert_btn = ft.Container()
-            if not is_active and self.revert_cb:
+            if not is_active and self.revert_cb and "name" in item:
                 revert_btn = ft.IconButton(
                     icon=ft.Icons.UNDO, 
                     icon_color="#FFFFFF",
                     bgcolor="#F59E0B",
                     tooltip=self.t("Revert back to Active"),
-                    width=32, height=32, icon_size=18,
-                    on_click=lambda e, n=b_name: self.open_revert_dialog(n) # --- NOW OPENS CONFIRMATION DIALOG ---
+                    width=36, height=36, icon_size=20,
+                    on_click=lambda e, n=item["name"]: self.open_revert_dialog(n) 
                 )
+
+            latest_time_str = ""
+            if item.get('timeline'):
+                dt_latest = parse_date(item['timeline'][-1]['time'])
+                latest_time_str = dt_latest.strftime("%d %b %Y") 
+
+            if logs_ui:
+                controls_to_add = [ft.Divider(height=1, color="#E2E8F0"), ft.Container(padding=ft.padding.symmetric(horizontal=20, vertical=15), bgcolor="#F8FAFC", content=ft.Column(logs_ui, spacing=8))]
+            else:
+                controls_to_add = [ft.Divider(height=1, color="#E2E8F0"), ft.Container(padding=20, alignment=ft.alignment.center, content=ft.Text(self.t("No routing steps logged yet"), italic=True, color="#94A3B8", size=s(16)))]
 
             self.list_container.controls.append(
                 ft.Container(
@@ -288,31 +279,17 @@ class ArchiveLogView(ft.Container):
                     content=ft.ExpansionTile(
                         title=ft.Column([
                             ft.Row([
-                                ft.Text(f"{b_data['type']} - {b_name}", weight=ft.FontWeight.W_800, color="#0F172A", size=s(18)), 
+                                ft.Text(f"{item.get('type', '')} - {item.get('name', '')}", weight=ft.FontWeight.W_800, color="#0F172A", size=s(18)), 
                                 status_badge,
                                 revert_btn
                             ], spacing=15), 
-                            lineage_badge
                         ], spacing=2), 
-                        subtitle=ft.Text(f"{self.t('Total Tracked Qty:')} {b_data['quantity']:g} | {self.t('Latest update:')} {b_data['timeline'][-1]['time']}", size=s(13), color="#64748B"), 
+                        subtitle=ft.Text(f"{self.t('Total Tracked Qty:')} {item.get('quantity', 0):g} | {self.t('Latest update:')} {latest_time_str}", size=s(14), color="#64748B"), 
                         leading=ft.Container(padding=12, bgcolor=status_bg, border_radius=10, content=ft.Icon(icon_type, color=status_color, size=28)), 
-                        initially_expanded=should_expand, 
-                        maintain_state=True, 
-                        on_change=lambda e, n=b_name: self.toggle_group(e, n, False), 
                         controls_padding=0, 
-                        controls=[ft.Divider(height=1, color="#E2E8F0"), ft.Container(padding=ft.padding.symmetric(horizontal=20, vertical=15), bgcolor="#F8FAFC", content=ft.Column(logs_ui, spacing=8))]
+                        controls=controls_to_add
                     )
                 )
             )
-
-        for item in reversed(stock_logs): 
-            is_added = "Added" in item["action"]
-            bg_c = "#EFF6FF" if is_added else "#FFF7ED"
-            icon_c = "#2563EB" if is_added else "#F59E0B"
-            icon_t = ft.Icons.ADD_SHOPPING_CART if is_added else ft.Icons.PLAY_ARROW
-            dt_obj = parse_date(item['date'])
-            
-            self.list_container.controls.append(ft.Container(bgcolor="#FFFFFF", border_radius=12, border=ft.border.all(1, "#E2E8F0"), padding=ft.padding.symmetric(vertical=5), content=ft.ListTile(leading=ft.Container(padding=10, bgcolor=bg_c, border_radius=8, content=ft.Icon(icon_t, color=icon_c, size=24)), title=ft.Text(f"{item['type']} - {item['action']}", weight=ft.FontWeight.W_700, color="#0F172A", size=s(16)), subtitle=ft.Text(f"{self.t('Quantity:')} {item['quantity']:g}", color="#64748B", size=s(14)), trailing=ft.Text(dt_obj.strftime("%d %b %Y, %I:%M %p"), size=s(13), color="#64748B"))))
-            
-        try: self.list_container.update() 
+        try: self.list_container.update()
         except: pass

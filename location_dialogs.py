@@ -23,11 +23,11 @@ class LocationDialogsMixin:
         ts_base = ft.TextStyle(font_family="Jameel Noori", color=TEXT_MAIN)
         ts_large = ft.TextStyle(font_family="Jameel Noori", size=s(18), weight=ft.FontWeight.BOLD, color=TEXT_MAIN)
 
-        self.l3_name_input = ft.TextField(label=self.t("Sub-Location Name"), autofocus=True, border_radius=8, focused_border_color=PRIMARY, on_submit=self.save_l3_tab, text_style=ts_base)
+        self.l3_name_input = ft.TextField(label=self.t("Sub-Location Name"), autofocus=False, border_radius=8, focused_border_color=PRIMARY, on_submit=self.save_l3_tab, text_style=ts_base)
         self.l3_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("New Sub-Location"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=self.l3_name_input, actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.l3_dialog), style=ft.ButtonStyle(color=TEXT_SUB, text_style=ts_base)), ft.ElevatedButton(self.t("Save"), on_click=self.save_l3_tab, style=get_btn_style(PRIMARY, "#FFFFFF"))])
 
         self.l3_target_edit_name = ""
-        self.l3_edit_name_input = ft.TextField(label=self.t("Sub-Location Name"), autofocus=True, border_radius=8, focused_border_color=PRIMARY, on_submit=self.save_edit_l3_tab, text_style=ts_base)
+        self.l3_edit_name_input = ft.TextField(label=self.t("Sub-Location Name"), autofocus=False, border_radius=8, focused_border_color=PRIMARY, on_submit=self.save_edit_l3_tab, text_style=ts_base)
         self.l3_edit_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("Edit Location"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=self.l3_edit_name_input, actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.l3_edit_dialog), style=ft.ButtonStyle(color=TEXT_SUB, text_style=ts_base)), ft.ElevatedButton(self.t("Save"), on_click=self.save_edit_l3_tab, style=get_btn_style(PRIMARY, "#FFFFFF"))])
 
         self.l3_target_delete_name = ""
@@ -35,7 +35,7 @@ class LocationDialogsMixin:
         self.delete_l3_confirm_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("Confirm Delete"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=ft.Text(self.t("Are you sure you want to delete this?"), size=s(14), font_family="Jameel Noori"), actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.delete_l3_confirm_dialog), style=ft.ButtonStyle(text_style=ts_base)), self.delete_l3_btn_confirm])
         
         self.process_batch_input = ft.TextField(label=self.t("Batch Identifier"), border_radius=8, focused_border_color=PRIMARY, read_only=True, text_style=ts_base)
-        self.process_qty_input = ft.TextField(label=self.t("Quantity to Process"), border_radius=8, focused_border_color=PRIMARY, on_submit=self.execute_process, autofocus=True, text_style=ts_base)
+        self.process_qty_input = ft.TextField(label=self.t("Quantity to Process"), border_radius=8, focused_border_color=PRIMARY, on_submit=self.execute_process, autofocus=False, text_style=ts_base)
         self.process_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("Start Processing"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=ft.Column([self.process_batch_input, self.process_qty_input], tight=True), actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.process_dialog), style=ft.ButtonStyle(color=TEXT_SUB, text_style=ts_base)), ft.ElevatedButton(self.t("Launch Batch"), on_click=self.execute_process, style=get_btn_style(PRIMARY, "#FFFFFF"))])
         
         self.confirm_text = ft.Text("", size=s(14), font_family="Jameel Noori")
@@ -58,7 +58,7 @@ class LocationDialogsMixin:
         self.delete_step_btn = ft.ElevatedButton(self.t("Delete"), on_click=self.execute_delete_step, style=get_btn_style("#EF4444", "white"))
         self.delete_confirm_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("Confirm Delete"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=ft.Text(self.t("Are you sure you want to delete this?"), size=s(14), font_family="Jameel Noori"), actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.delete_confirm_dialog), style=ft.ButtonStyle(text_style=ts_base)), self.delete_step_btn])
 
-        self.cancel_to_stock_qty_input = ft.TextField(label=self.t("Quantity to Return"), border_radius=8, focused_border_color=WARNING, autofocus=True, text_style=ts_base)
+        self.cancel_to_stock_qty_input = ft.TextField(label=self.t("Quantity to Return"), border_radius=8, focused_border_color=WARNING, autofocus=False, text_style=ts_base)
         self.cancel_to_stock_dialog = ft.AlertDialog(
             shape=dlg_shape, 
             title=ft.Text(self.t("Return to Stock"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), 

@@ -143,14 +143,14 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
             if idx < step_idx:
                 icon, color = ft.Icons.CHECK_CIRCLE, SUCCESS
                 for log in reversed(item["timeline"]):
-                    if log["step"] == f"Completed: {s_name}": 
+                    if (log.get("idx") == idx and log["step"].startswith("Completed:")) or (log.get("idx") is None and log["step"] == f"Completed: {s_name}"): 
                         dt_obj = parse_date(log['time'])
                         step_time_str = f"{dt_obj.strftime('%d %b %Y, %I:%M %p')} • {log.get('qty', item['quantity']):g} units"
                         break
             elif idx == step_idx and is_processing:
                 icon, color = ft.Icons.MOTION_PHOTOS_ON, WARNING
                 for log in reversed(item["timeline"]):
-                    if log["step"] == f"Started: {s_name}": 
+                    if (log.get("idx") == idx and log["step"].startswith("Started:")) or (log.get("idx") is None and log["step"] == f"Started: {s_name}"): 
                         dt_obj = parse_date(log['time'])
                         step_time_str = f"{dt_obj.strftime('%d %b %Y, %I:%M %p')} • {log.get('qty', item['quantity']):g} units"
                         break
@@ -355,7 +355,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         if idx < step_idx:
                             icon, color, font_w = ft.Icons.CHECK_CIRCLE, SUCCESS, ft.FontWeight.W_600
                             for log in reversed(item["timeline"]):
-                                if log["step"] == f"Completed: {s_name}": 
+                                if (log.get("idx") == idx and log["step"].startswith("Completed:")) or (log.get("idx") is None and log["step"] == f"Completed: {s_name}"): 
                                     dt_obj = parse_date(log['time'])
                                     step_qty_val = log.get('qty', item["quantity"])
                                     step_time_str = f" • {dt_obj.strftime('%d %b %Y')} [{step_qty_val:g} {self.t('units')}]"
@@ -363,7 +363,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         elif idx == step_idx and is_processing:
                             icon, color, font_w = ft.Icons.MOTION_PHOTOS_ON, WARNING, ft.FontWeight.W_700
                             for log in reversed(item["timeline"]):
-                                if log["step"] == f"Started: {s_name}": 
+                                if (log.get("idx") == idx and log["step"].startswith("Started:")) or (log.get("idx") is None and log["step"] == f"Started: {s_name}"): 
                                     dt_obj = parse_date(log['time'])
                                     step_qty_val = log.get('qty', item["quantity"])
                                     step_time_str = f" • {dt_obj.strftime('%d %b %Y')} [{step_qty_val:g} {self.t('units')}]"

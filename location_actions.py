@@ -290,8 +290,9 @@ class LocationActionsMixin:
         item, active_items_list = self.get_item_by_id(self.current_action_item, return_list=True)
         if item["step_idx"] < len(item["steps"]):
             step_name = item["steps"][item["step_idx"]]
-            if not item.get("is_processing", False): item["is_processing"] = True; item["timeline"].append({"step": f"Started: {step_name}", "time": datetime.now().strftime("%Y-%m-%d %I:%M %p"), "qty": item["quantity"]})
-            else: item["is_processing"] = False; item["timeline"].append({"step": f"Completed: {step_name}", "time": datetime.now().strftime("%Y-%m-%d %I:%M %p"), "qty": item["quantity"]}); item["step_idx"] += 1
+            idx_val = item["step_idx"]
+            if not item.get("is_processing", False): item["is_processing"] = True; item["timeline"].append({"step": f"Started: {step_name}", "idx": idx_val, "time": datetime.now().strftime("%Y-%m-%d %I:%M %p"), "qty": item["quantity"]})
+            else: item["is_processing"] = False; item["timeline"].append({"step": f"Completed: {step_name}", "idx": idx_val, "time": datetime.now().strftime("%Y-%m-%d %I:%M %p"), "qty": item["quantity"]}); item["step_idx"] += 1
         self.page.close(self.confirm_dialog); self.render()
 
     def execute_delete_step(self, e):

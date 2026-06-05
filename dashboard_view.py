@@ -1,5 +1,6 @@
 import flet as ft
 from datetime import datetime
+import os
 
 def parse_date(date_str):
     try: return datetime.strptime(date_str, "%Y-%m-%d %I:%M %p")
@@ -53,7 +54,8 @@ class DashboardView(ft.Container):
                 ft.Row([ft.Icon(ft.Icons.FILTER_ALT, color="#64748B", size=s(20)), ft.Text(self.t("Activity Date Filter:"), color="#64748B", weight=ft.FontWeight.W_600, size=s(15))]),
                 ft.Row([
                     self.dash_date_btn,
-                    ft.IconButton(ft.Icons.RESTORE, on_click=self.reset_date, tooltip=self.t("Reset to Today"), icon_color="#3B82F6", bgcolor="#EFF6FF")
+                    ft.IconButton(ft.Icons.RESTORE, on_click=self.reset_date, tooltip=self.t("Reset to Today"), icon_color="#3B82F6", bgcolor="#EFF6FF"),
+                    ft.ElevatedButton(self.t("Generate PDF Report"), icon=ft.Icons.PICTURE_AS_PDF, style=ft.ButtonStyle(color="white", bgcolor="#8B5CF6", shape=ft.RoundedRectangleBorder(radius=8)), on_click=self.export_dashboard_pdf)
                 ], wrap=True) 
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True)
         )
@@ -65,6 +67,67 @@ class DashboardView(ft.Container):
             ft.Container(height=s(5)), 
             self.dash_list
         ], expand=True, scroll=ft.ScrollMode.AUTO)
+
+    def export_dashboard_pdf(self, e):
+        # --- DYNAMIC IMPORT FIX ---
+        try:
+            from fpdf import FPDF
+        except ImportError:
+            self.page.open(ft.SnackBar(content=ft.Text("Please install fpdf2: pip install fpdf2", color="#FFFFFF"), bgcolor="#EF4444"))
+            return
+            
+        if not self.current_dashboard_items:
+            self.page.open(ft.SnackBar(content=ft.Text("No data to export for this date.", color="#FFFFFF"), bgcolor="#EF4444"))
+            return
+
+        pdf = FPDF()
+        pdf.add_page()
+        
+        font_path = "assets/Jameel Noori.ttf"
+        has_unicode_font = False
+        if os.path.exists(font_path):
+            try:
+                pdf.add_font("JameelNoori", "", font_path)
+                has_unicode_font = True
+            except: pass
+                
+        font_name = "JameelNoori" if has_unicode_font else "Helvetica"
+        
+        def safe_txt(txt):
+            if has_unicode_font: return str(txt)
+            return str(txt).encode('latin-1', 'replace').decode('latin-1')
+
+        pdf.set_font(font_name, size=18)
+        report_date = self.dash_date.strftime('%d %b %Y')
+        pdf.cell(200, 10, txt=f"Daily Factory Overview - {report_date}", ln=True, align='C')
+        pdf.cell(200, 10, txt="---------------------------------------------------------", ln=True, align='C')
+        
+        pdf.set_font(font_name, size=12)
+
+        for d_item in self.current_dashboard_items:
+            item = d_item["item"]
+            loc_str = f"[{d_item['fac']} > {d_item['loc']} > {d_item['sub_name']}]"
+            batch_name = item.get('name', 'Unknown')
+            product_type = item.get('type', 'Unknown')
+            
+            pdf.set_font(font_name, size=14)
+            pdf.cell(200, 10, txt=safe_txt(f"{product_type} - {batch_name} {loc_str}"), ln=True)
+            pdf.set_font(font_name, size=12)
+            
+            for log in d_item["valid_logs"]:
+                dt_obj = parse_date(log['time'])
+                time_formatted = dt_obj.strftime("%I:%M %p")
+                pdf.cell(200, 8, txt=safe_txt(f"   -> {time_formatted}: {log.get('step', '')} (Qty: {log.get('qty', item.get('quantity', 0))})"), ln=True)
+            
+            pdf.cell(200, 5, txt="", ln=True) 
+
+        file_path = os.path.join(os.path.expanduser("~"), "Desktop", f"Daily_Report_{self.dash_date.strftime('%Y%m%d')}.pdf")
+        
+        try:
+            pdf.output(file_path)
+            self.page.open(ft.SnackBar(content=ft.Text(f"PDF saved to Desktop: {os.path.basename(file_path)}", color="#FFFFFF"), bgcolor="#10B981"))
+        except Exception as ex:
+            self.page.open(ft.SnackBar(content=ft.Text(f"PDF generation failed: {str(ex)}", color="#FFFFFF"), bgcolor="#EF4444"))
 
     def update_buttons(self):
         self.dash_date_btn.text = f"{self.t('Date:')} {self.dash_date.strftime('%d %b %Y')}"
@@ -112,6 +175,7 @@ class DashboardView(ft.Container):
                         dashboard_items.append({"item": item, "fac": fac, "loc": loc, "sub_name": sub_name, "status_type": status_type, "valid_logs": valid_logs, "latest_time": latest_time})
         
         dashboard_items.sort(key=lambda x: x["latest_time"], reverse=True)
+        self.current_dashboard_items = dashboard_items
         
         if not dashboard_items:
             self.dash_list.controls.append(ft.Container(padding=20, alignment=ft.alignment.center, content=ft.Text(self.t("No active or completed processes found for this specific date."), color="#64748B", size=s(16))))
@@ -131,7 +195,6 @@ class DashboardView(ft.Container):
                 
                 time_formatted = dt_obj.strftime("%d %b %Y") 
                 
-                # --- NEW TEXT ISOLATION LOGIC ---
                 raw_step = log.get('step', '')
                 prefix = ""
                 custom_name = raw_step
@@ -147,7 +210,7 @@ class DashboardView(ft.Container):
                     custom_name = ""
 
                 translated_prefix = self.t(prefix) + " " if prefix else ""
-                qty_str = f"  [{log['qty']:g} {self.t('units')}]" if 'qty' in log else ""
+                qty_str = f"  [{log.get('qty', item.get('quantity', 0)):g} {self.t('units')}]"
                 
                 step_font_size = 19
                 
@@ -155,7 +218,6 @@ class DashboardView(ft.Container):
                 if translated_prefix:
                     text_spans.append(ft.TextSpan(text=translated_prefix))
                 if custom_name:
-                    # ONLY THE CUSTOM STEP NAME IS INCREASED AND BOLDED
                     text_spans.append(ft.TextSpan(text=custom_name, style=ft.TextStyle(size=s(step_font_size + 2), weight=ft.FontWeight.W_800)))
                 if qty_str:
                     text_spans.append(ft.TextSpan(text=qty_str, style=ft.TextStyle(size=s(step_font_size - 3), color="#64748B")))

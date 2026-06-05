@@ -1,5 +1,6 @@
 import flet as ft
 import copy
+import os
 from datetime import datetime
 
 def parse_date(date_str):
@@ -18,6 +19,7 @@ class ArchiveLogView(ft.Container):
         self.view_mode = "archive" 
         self.expand = True
         self.revert_cb = revert_cb
+        self.filtered_items = []
         
         def s(size): return int(size * self.scale_factor)
         self.s = s
@@ -41,6 +43,34 @@ class ArchiveLogView(ft.Container):
             ]
         )
         
+        self.export_selected_ids = set()
+        self.export_list_col = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO, height=400)
+        
+        self.export_dialog = ft.AlertDialog(
+            shape=ft.RoundedRectangleBorder(radius=12),
+            title=ft.Row([
+                ft.Icon(ft.Icons.PICTURE_AS_PDF, color="#8B5CF6", size=28),
+                ft.Text(self.t("Export PDF"), weight=ft.FontWeight.BOLD, size=s(22))
+            ], spacing=10),
+            content=ft.Container(
+                width=600,
+                content=ft.Column([
+                    ft.Text(self.t("Select specific batches or click Select All to generate a combined PDF report."), size=s(14), color="#64748B"),
+                    ft.Container(height=5),
+                    ft.Row([
+                        ft.ElevatedButton("Select All", on_click=self.select_all_export, style=ft.ButtonStyle(color="#2563EB", bgcolor="#EFF6FF")),
+                        ft.ElevatedButton("Deselect All", on_click=self.deselect_all_export, style=ft.ButtonStyle(color="#64748B", bgcolor="#F1F5F9"))
+                    ]),
+                    ft.Divider(height=20, color="#E2E8F0"),
+                    self.export_list_col
+                ], tight=True)
+            ),
+            actions=[
+                ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.export_dialog), style=ft.ButtonStyle(color="#64748B")),
+                ft.ElevatedButton(self.t("Generate PDF"), icon=ft.Icons.DOWNLOAD, on_click=self.execute_pdf_export, style=ft.ButtonStyle(color="white", bgcolor="#8B5CF6", shape=ft.RoundedRectangleBorder(radius=8)))
+            ]
+        )
+
         current_date_val = datetime.now()
         self.start_date = None
         self.end_date = None
@@ -74,7 +104,8 @@ class ArchiveLogView(ft.Container):
                     self.search_input, 
                     self.start_btn, 
                     self.end_btn, 
-                    ft.IconButton(ft.Icons.CLOSE, on_click=self.clear_filters, tooltip=self.t("Clear Filters"), icon_color="#EF4444", bgcolor="#FEF2F2")
+                    ft.IconButton(ft.Icons.CLOSE, on_click=self.clear_filters, tooltip=self.t("Clear Filters"), icon_color="#EF4444", bgcolor="#FEF2F2"),
+                    ft.ElevatedButton("Export PDF", icon=ft.Icons.PICTURE_AS_PDF, style=ft.ButtonStyle(color="white", bgcolor="#8B5CF6", shape=ft.RoundedRectangleBorder(radius=8)), on_click=self.open_export_dialog)
                 ], wrap=True)
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True)
         )
@@ -85,6 +116,135 @@ class ArchiveLogView(ft.Container):
             self.filter_container, 
             self.list_container
         ], expand=True)
+
+    def open_export_dialog(self, e):
+        self.export_selected_ids.clear()
+        self.render_export_list()
+        self.page.open(self.export_dialog)
+        self.page.update()
+
+    def select_all_export(self, e):
+        for wrapper in self.filtered_items:
+            self.export_selected_ids.add(wrapper["data"].get("id", "Unknown"))
+        self.render_export_list()
+
+    def deselect_all_export(self, e):
+        self.export_selected_ids.clear()
+        self.render_export_list()
+
+    def toggle_export_batch(self, e, batch_id, force_state=None):
+        is_checked = force_state if force_state is not None else e.control.value
+        if is_checked: self.export_selected_ids.add(batch_id)
+        else: self.export_selected_ids.discard(batch_id)
+        self.render_export_list()
+
+    def render_export_list(self):
+        self.export_list_col.controls.clear()
+        
+        def sort_key(wrapper):
+            return (0 if wrapper["data"].get("id") in self.export_selected_ids else 1, wrapper["data"].get("name", ""))
+            
+        sorted_items = sorted(self.filtered_items, key=sort_key)
+
+        for wrapper in sorted_items:
+            item = wrapper["data"]
+            item_id = item.get("id", "Unknown")
+            is_checked = item_id in self.export_selected_ids
+            status_txt = wrapper["status"]
+            status_color = "#10B981" if status_txt == "Completed" else "#2563EB"
+            
+            creation_date = "Unknown Date"
+            if item.get("timeline") and len(item["timeline"]) > 0:
+                creation_date = item["timeline"][0].get("time", "Unknown Date")
+
+            batch_name = item.get('name', 'Unknown')
+            qty = item.get('quantity', 0)
+
+            card = ft.Container(
+                padding=ft.padding.symmetric(horizontal=15, vertical=12),
+                bgcolor="#F8FAFC" if not is_checked else "#EFF6FF",
+                border_radius=8,
+                border=ft.border.all(1, "#CBD5E1" if not is_checked else "#2563EB"),
+                ink=True,
+                on_click=lambda e, i=item_id, c=not is_checked: self.toggle_export_batch(e, i, force_state=c),
+                content=ft.Row([
+                    ft.Checkbox(value=is_checked, on_change=lambda e, i=item_id: self.toggle_export_batch(e, i), active_color="#2563EB"),
+                    ft.Column([
+                        ft.Text(f"{batch_name}", weight=ft.FontWeight.W_800, size=self.s(17), color="#0F172A", font_family="Jameel Noori"),
+                        ft.Row([
+                            ft.Icon(ft.Icons.CALENDAR_TODAY, size=13, color="#64748B"),
+                            ft.Text(f"Created: {creation_date}", size=self.s(13), color="#64748B"),
+                            ft.Text("•", size=self.s(13), color="#64748B"),
+                            ft.Text(f"{qty:g} units", size=self.s(13), color="#64748B", weight=ft.FontWeight.W_600)
+                        ], spacing=6)
+                    ], expand=True, spacing=4),
+                    ft.Container(
+                        padding=ft.padding.symmetric(horizontal=10, vertical=4),
+                        bgcolor=f"{status_color}20", border_radius=12,
+                        content=ft.Text(status_txt, size=self.s(13), color=status_color, weight=ft.FontWeight.W_800)
+                    )
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+            )
+            self.export_list_col.controls.append(card)
+            
+        if not self.export_list_col.controls:
+            self.export_list_col.controls.append(ft.Container(padding=20, alignment=ft.alignment.center, content=ft.Text("No batches match current filter.", color="#64748B", italic=True)))
+            
+        self.page.update()
+
+    def execute_pdf_export(self, e):
+        # --- DYNAMIC IMPORT FIX ---
+        try:
+            from fpdf import FPDF
+        except ImportError:
+            self.page.open(ft.SnackBar(content=ft.Text("Please install fpdf2: pip install fpdf2", color="#FFFFFF"), bgcolor="#EF4444"))
+            return
+            
+        if not self.export_selected_ids:
+            self.page.open(ft.SnackBar(content=ft.Text("Please select at least one batch.", color="#FFFFFF"), bgcolor="#EF4444"))
+            return
+
+        pdf = FPDF()
+        pdf.add_page()
+        
+        font_path = "assets/Jameel Noori.ttf"
+        has_unicode_font = False
+        if os.path.exists(font_path):
+            try:
+                pdf.add_font("JameelNoori", "", font_path)
+                has_unicode_font = True
+            except: pass
+                
+        font_name = "JameelNoori" if has_unicode_font else "Helvetica"
+        
+        def safe_txt(txt):
+            if has_unicode_font: return str(txt)
+            return str(txt).encode('latin-1', 'replace').decode('latin-1')
+
+        pdf.set_font(font_name, size=18)
+        pdf.cell(200, 10, txt=f"Filtered Batch Report - {self.view_mode.title()}", ln=True, align='C')
+        pdf.cell(200, 10, txt="---------------------------------------------------------", ln=True, align='C')
+
+        for wrapper in self.filtered_items:
+            item = wrapper["data"]
+            if item.get("id", "Unknown") in self.export_selected_ids:
+                pdf.set_font(font_name, size=14)
+                pdf.cell(200, 10, txt=safe_txt(f"Batch: {item.get('name', 'Unknown')} ({item.get('type', '')}) - {wrapper['status']}"), ln=True)
+                pdf.set_font(font_name, size=12)
+                
+                for log in item.get("timeline", []):
+                    pdf.cell(200, 8, txt=safe_txt(f"   [{log.get('time', '')}] {log.get('step', '')} (Qty: {log.get('qty', item.get('quantity', 0))})"), ln=True)
+                
+                pdf.cell(200, 5, txt="", ln=True)
+
+        file_path = os.path.join(os.path.expanduser("~"), "Desktop", f"Batch_Report_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf")
+        
+        try:
+            pdf.output(file_path)
+            self.page.close(self.export_dialog)
+            self.page.open(ft.SnackBar(content=ft.Text(f"PDF saved to Desktop: {os.path.basename(file_path)}", color="#FFFFFF"), bgcolor="#10B981"))
+        except Exception as ex:
+            self.page.open(ft.SnackBar(content=ft.Text(f"PDF generation failed: {str(ex)}", color="#FFFFFF"), bgcolor="#EF4444"))
 
     def open_revert_dialog(self, batch_name):
         self.revert_target_name = batch_name
@@ -210,7 +370,6 @@ class ArchiveLogView(ft.Container):
                     dt_obj = parse_date(log['time'])
                     time_formatted = dt_obj.strftime("%d %b %Y")
                     
-                    # --- NEW TEXT ISOLATION LOGIC ---
                     prefix = ""
                     custom_name = raw_step
 
@@ -231,7 +390,6 @@ class ArchiveLogView(ft.Container):
                     if translated_prefix:
                         text_spans.append(ft.TextSpan(text=translated_prefix))
                     if custom_name:
-                        # ONLY THE CUSTOM STEP NAME IS INCREASED AND BOLDED
                         text_spans.append(ft.TextSpan(text=custom_name, style=ft.TextStyle(size=s(step_font_size + 2), weight=ft.FontWeight.W_800)))
                     if qty_str:
                         text_spans.append(ft.TextSpan(text=qty_str, style=ft.TextStyle(size=s(step_font_size - 3), color="#64748B")))

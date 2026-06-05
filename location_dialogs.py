@@ -31,7 +31,6 @@ class LocationDialogsMixin:
         )
         self.step_date_picker_data = None
 
-        # --- NEW STEP QTY EDIT DIALOG ---
         self.edit_step_qty_input = ft.TextField(label=self.t("New Quantity"), border_radius=8, focused_border_color=PRIMARY, autofocus=False, text_style=ts_base, on_submit=self.execute_edit_step_qty)
         self.edit_step_qty_data = None
         self.edit_step_qty_dialog = ft.AlertDialog(
@@ -156,6 +155,7 @@ class LocationDialogsMixin:
         try: self.edit_step_qty_input.focus()
         except: pass
 
+    # Existing Location Dialog functions...
     def open_add_l3_dialog(self, e): 
         self.l3_name_input.value = ""
         self.page.open(self.l3_dialog)

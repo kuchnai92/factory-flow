@@ -271,6 +271,28 @@ def main(page: ft.Page):
             }
             try:
                 with open(STATE_FILE, "w") as f: json.dump(data_to_save, f, indent=4)
+                
+                # --- 10 DAYS AUTOMATIC ROLLING BACKUP ---
+                backup_dir = os.path.join(db.REAL_DATA_DIR, "backups")
+                if not os.path.exists(backup_dir):
+                    os.makedirs(backup_dir)
+                    
+                today_str = datetime.now().strftime("%Y-%m-%d")
+                backup_file = os.path.join(backup_dir, f"app_workspace_{today_str}.json")
+                
+                # Overwrite/Update today's backup file with latest data
+                with open(backup_file, "w") as f: 
+                    json.dump(data_to_save, f, indent=4)
+                
+                # Retrieve and sort backup files to remove ones older than 10 days
+                all_backups = [f for f in os.listdir(backup_dir) if f.startswith("app_workspace_") and f.endswith(".json")]
+                all_backups.sort() 
+                
+                if len(all_backups) > 10:
+                    for f in all_backups[:-10]:
+                        try: os.remove(os.path.join(backup_dir, f))
+                        except: pass
+                # ----------------------------------------
             except: pass
 
         def setup_app():

@@ -1,5 +1,6 @@
 import flet as ft
 from datetime import datetime
+import os
 from archive_view import ArchiveLogView
 from location_actions import LocationActionsMixin, parse_qty
 from location_dialogs import LocationDialogsMixin
@@ -69,6 +70,57 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
 
         self.archive_view = ArchiveLogView(self.page, self.t, self.scale_factor, self.revert_archived_batch)
 
+    def generate_pdf_share(self, item_id):
+        # --- DYNAMIC IMPORT FIX ---
+        try:
+            from fpdf import FPDF
+        except ImportError:
+            self.page.open(ft.SnackBar(content=ft.Text("Please install fpdf2: pip install fpdf2", color="#FFFFFF"), bgcolor="#EF4444"))
+            return
+
+        item = self.get_item_by_id(item_id)
+        if not item: return
+
+        pdf = FPDF()
+        pdf.add_page()
+        
+        font_path = "assets/Jameel Noori.ttf"
+        has_unicode_font = False
+        if os.path.exists(font_path):
+            try:
+                pdf.add_font("JameelNoori", "", font_path)
+                has_unicode_font = True
+            except: pass
+                
+        font_name = "JameelNoori" if has_unicode_font else "Helvetica"
+        
+        def safe_txt(txt):
+            if has_unicode_font: return str(txt)
+            return str(txt).encode('latin-1', 'replace').decode('latin-1')
+
+        pdf.set_font(font_name, size=16)
+        pdf.cell(200, 10, txt=safe_txt(f"Batch Report: {item.get('name', 'Unknown')}"), ln=True, align='C')
+        
+        pdf.set_font(font_name, size=12)
+        pdf.cell(200, 10, txt=safe_txt(f"Product: {item.get('type', '')} | Quantity: {item.get('quantity', 0)}"), ln=True, align='C')
+        pdf.cell(200, 10, txt="---------------------------------------------------------", ln=True, align='C')
+        
+        pdf.set_font(font_name, size=14)
+        pdf.cell(200, 10, txt="Timeline History", ln=True)
+        pdf.set_font(font_name, size=12)
+
+        for log in item.get("timeline", []):
+            pdf.cell(200, 10, txt=safe_txt(f"[{log.get('time', '')}] {log.get('step', '')} - Qty: {log.get('qty', item.get('quantity', 0))}"), ln=True)
+
+        safe_filename = "".join([c for c in item.get('name', 'Share') if c.isalpha() or c.isdigit() or c==' ']).rstrip()
+        file_path = os.path.join(os.path.expanduser("~"), "Desktop", f"Batch_{safe_filename.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf")
+        
+        try:
+            pdf.output(file_path)
+            self.page.open(ft.SnackBar(content=ft.Text(f"PDF saved to Desktop: {os.path.basename(file_path)}", color="#FFFFFF"), bgcolor="#10B981"))
+        except Exception as ex:
+            self.page.open(ft.SnackBar(content=ft.Text(f"PDF generation failed: {str(ex)}", color="#FFFFFF"), bgcolor="#EF4444"))
+
     def show_snackbar(self, msg, is_error=False): 
         self.page.open(ft.SnackBar(content=ft.Text(msg, color="#FFFFFF", weight=ft.FontWeight.W_500, size=self.s(14)), bgcolor="#EF4444" if is_error else "#10B981", behavior=ft.SnackBarBehavior.FLOATING, margin=20, shape=ft.RoundedRectangleBorder(radius=8)))
 
@@ -84,7 +136,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
         if not data_ctx["tabs"]: return None
         active_items = data_ctx["data"][data_ctx["tabs"][data_ctx["active_tab"]]]["active"]
         for item in active_items:
-            if item["id"] == item_id: return (item, active_items) if return_list else item
+            if item.get("id", "Unknown") == item_id: return (item, active_items) if return_list else item
         return None
 
     def get_all_batch_names_for_product(self, ptype):
@@ -175,18 +227,15 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
             ]
             
             if (idx < step_idx or (idx == step_idx and is_processing)) and target_log_idx != -1 and dt_obj and step_qty_val is not None:
-                
-                # --- NEW INLINE EDITOR LOGIC FOR QUANTITY ---
                 if edit_log_idx == target_log_idx:
                     qty_input = ft.TextField(
-                        value=f"{step_qty_val:g}", 
-                        height=s(36), width=s(100), 
+                        value=f"{step_qty_val:g}", height=s(36), width=s(100), 
                         content_padding=ft.padding.symmetric(horizontal=10, vertical=0),
                         text_size=s(14), border_color=PRIMARY, focused_border_color=PRIMARY,
                         text_style=ft.TextStyle(color=TEXT_MAIN, font_family="Jameel Noori")
                     )
                     
-                    def save_inline_qty(e, i=item["id"], l_i=target_log_idx, q_inp=qty_input):
+                    def save_inline_qty(e, i=item.get("id", "Unknown"), l_i=target_log_idx, q_inp=qty_input):
                         try:
                             new_q = float(q_inp.value.strip())
                             if new_q < 0: raise ValueError
@@ -195,26 +244,24 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                             self.render()
                             self.save_cb()
                             self.show_snackbar(self.t("Quantity updated successfully!"))
-                            self.open_batch_details(i, None) # Close editor & refresh View
+                            self.open_batch_details(i, None) 
                         except Exception:
                             self.show_snackbar(self.t("Invalid quantity!"), True)
                             
                     edit_row = ft.Row([
                         qty_input,
                         ft.IconButton(ft.Icons.CHECK_CIRCLE, icon_color=SUCCESS, icon_size=s(20), padding=0, width=s(32), height=s(32), on_click=save_inline_qty, tooltip=self.t("Save")),
-                        ft.IconButton(ft.Icons.CANCEL, icon_color=WARNING, icon_size=s(20), padding=0, width=s(32), height=s(32), on_click=lambda e, i=item["id"]: self.open_batch_details(i, None), tooltip=self.t("Cancel"))
+                        ft.IconButton(ft.Icons.CANCEL, icon_color=WARNING, icon_size=s(20), padding=0, width=s(32), height=s(32), on_click=lambda e, i=item.get("id", "Unknown"): self.open_batch_details(i, None), tooltip=self.t("Cancel"))
                     ], spacing=4)
                     
                     sub_text_elements.append(edit_row)
-                
-                # --- STANDARD TEXT VIEW ---
                 else:
                     date_click_container = ft.Container(
                         content=ft.Row([
                             ft.Icon(ft.Icons.EDIT_CALENDAR, size=12, color=TEXT_SUB),
                             ft.Text(dt_obj.strftime('%d %b %Y'), size=s(13), color=TEXT_SUB)
                         ], spacing=2),
-                        on_click=lambda e, i=item["id"], l_i=target_log_idx, d_obj=dt_obj: self.open_step_date_picker(i, l_i, d_obj),
+                        on_click=lambda e, i=item.get("id", "Unknown"), l_i=target_log_idx, d_obj=dt_obj: self.open_step_date_picker(i, l_i, d_obj),
                         ink=True, border_radius=4, padding=ft.padding.symmetric(horizontal=4, vertical=2),
                         tooltip=self.t("Click to edit completion date")
                     )
@@ -224,8 +271,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                             ft.Icon(ft.Icons.EDIT, size=12, color=TEXT_SUB),
                             ft.Text(f"{step_qty_val:g} {self.t('units')}", size=s(13), color=TEXT_SUB)
                         ], spacing=2),
-                        # Opens Inline Editor directly instead of popping up another dialog!
-                        on_click=lambda e, i=item["id"], l_i=target_log_idx: self.open_batch_details(i, l_i),
+                        on_click=lambda e, i=item.get("id", "Unknown"), l_i=target_log_idx: self.open_batch_details(i, l_i),
                         ink=True, border_radius=4, padding=ft.padding.symmetric(horizontal=4, vertical=2),
                         tooltip=self.t("Click to edit quantity")
                     )
@@ -250,7 +296,6 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                 )
             )
 
-        # --- SEAMLESS IN-PLACE UPDATE INSTEAD OF REOPENING ---
         if getattr(self, 'active_details_dialog', None):
             self.active_details_dialog.content.content = details_col
             self.active_details_dialog.update()
@@ -447,7 +492,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         bgcolor="#EFF6FF",
                         border_radius=8,
                         alignment=ft.alignment.center,
-                        on_click=lambda e, i=item["id"]: self.open_batch_details(i),
+                        on_click=lambda e, i=item.get("id", "Unknown"): self.open_batch_details(i),
                         ink=True,
                         tooltip=self.t("Click to view full step history"),
                         content=ft.Row([
@@ -456,9 +501,11 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         ], spacing=6)
                     )
 
-                    qty_field = make_input(f"{item['quantity']:g}", self.t("Qty"), s(80), lambda e, i=item["id"]: None, read_only=True)
+                    qty_field = make_input(f"{item['quantity']:g}", self.t("Qty"), s(80), lambda e, i=item.get("id", "Unknown"): None, read_only=True)
                     
-                    restock_btn = ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#EF4444", tooltip=self.t("Cancel & Restock"), padding=0, width=36, height=36, icon_size=22, on_click=lambda e, i=item["id"]: self.open_cancel_to_stock_dialog(i))
+                    restock_btn = ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#EF4444", tooltip=self.t("Cancel & Restock"), padding=0, width=36, height=36, icon_size=22, on_click=lambda e, i=item.get("id", "Unknown"): self.open_cancel_to_stock_dialog(i))
+                    
+                    pdf_btn = ft.IconButton(ft.Icons.PICTURE_AS_PDF, icon_color="#8B5CF6", tooltip=self.t("Share/Export PDF"), padding=0, width=36, height=36, icon_size=22, on_click=lambda e, i=item.get("id", "Unknown"): self.generate_pdf_share(i))
 
                     max_steps = len(item["steps"]); step_idx = item["step_idx"]; is_processing = item.get("is_processing", False)
                     
@@ -496,14 +543,14 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         else: icon, color, font_w = ft.Icons.RADIO_BUTTON_UNCHECKED, "#CBD5E1", ft.FontWeight.W_400
                             
                         can_delete = (idx > step_idx) or (idx == step_idx and not is_processing)
-                        del_btn = ft.IconButton(ft.Icons.CLOSE, icon_color="#EF4444", icon_size=16, padding=0, width=20, height=20, on_click=lambda e, i=item["id"], s_i=idx: self.confirm_delete_specific_step(i, s_i))
+                        del_btn = ft.IconButton(ft.Icons.CLOSE, icon_color="#EF4444", icon_size=16, padding=0, width=20, height=20, on_click=lambda e, i=item.get("id", "Unknown"), s_i=idx: self.confirm_delete_specific_step(i, s_i))
                         
                         display_step_name = f"{idx + 1}. {s_name}"
                         
                         if idx < step_idx and target_log_idx != -1 and dt_obj:
                             time_display = ft.Container(
                                 content=ft.Row([ft.Icon(ft.Icons.EDIT_CALENDAR, size=14, color=TEXT_SUB), ft.Text(step_time_str, size=s(14), color=TEXT_SUB)], spacing=2),
-                                on_click=lambda e, i=item["id"], l_i=target_log_idx, d_obj=dt_obj: self.open_step_date_picker(i, l_i, d_obj),
+                                on_click=lambda e, i=item.get("id", "Unknown"), l_i=target_log_idx, d_obj=dt_obj: self.open_step_date_picker(i, l_i, d_obj),
                                 ink=True,
                                 border_radius=4,
                                 padding=ft.padding.symmetric(horizontal=4, vertical=2),
@@ -523,14 +570,14 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         )
                         
                         draggable_step = ft.Draggable(
-                            group=f"steps_{item['id']}", 
-                            data={"item_id": item["id"], "step_idx": idx},
+                            group=f"steps_{item.get('id', 'Unknown')}", 
+                            data={"item_id": item.get("id", "Unknown"), "step_idx": idx},
                             content=step_container
                         )
                         
                         drop_target = ft.DragTarget(
-                            group=f"steps_{item['id']}",
-                            data={"item_id": item["id"], "step_idx": idx},
+                            group=f"steps_{item.get('id', 'Unknown')}",
+                            data={"item_id": item.get("id", "Unknown"), "step_idx": idx},
                             content=draggable_step,
                             on_accept=self.handle_step_swap
                         )
@@ -540,17 +587,17 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                     if step_idx >= max_steps: btn_text, btn_color, next_btn_disabled = self.t("Ready to Archive"), "#CBD5E1", True 
                     else: btn_text, btn_color, next_btn_disabled = (self.t("Finish Step") if is_processing else self.t("Start Step")), ("#0D9488" if is_processing else PRIMARY), False 
 
-                    add_step_btn = ft.IconButton(ft.Icons.ADD, tooltip="Inject routing step", icon_color=PRIMARY, bgcolor="#EFF6FF", icon_size=18, padding=0, width=28, height=28, on_click=lambda e, i=item["id"]: self.open_custom_step(i))
-                    undo_btn = ft.IconButton(ft.Icons.UNDO, tooltip="Revert Last Action", icon_color=TEXT_SUB, hover_color="#F1F5F9", padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item["id"]: self.execute_revert(i))
-                    move_btn = ft.IconButton(ft.Icons.DRIVE_FILE_MOVE_OUTLINE, tooltip=self.t("Relocate Batch"), icon_color=WARNING, bgcolor="#FFFBEB", padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item["id"]: self.open_move_dialog(i))
-                    next_btn = ft.ElevatedButton(btn_text, disabled=next_btn_disabled, style=ft.ButtonStyle(color="#FFFFFF", bgcolor=btn_color, shape=ft.RoundedRectangleBorder(radius=6), padding=ft.padding.symmetric(horizontal=12, vertical=0), text_style=ft.TextStyle(size=s(16), weight=ft.FontWeight.W_700)), height=40, on_click=lambda e, i=item["id"]: self.open_confirm_step(i))
-                    complete_batch_btn = ft.ElevatedButton(self.t("Archive"), style=ft.ButtonStyle(color="#FFFFFF", bgcolor=SUCCESS, shape=ft.RoundedRectangleBorder(radius=6), padding=ft.padding.symmetric(horizontal=12, vertical=0), text_style=ft.TextStyle(size=s(16), weight=ft.FontWeight.W_700)), height=40, on_click=lambda e, i=item["id"]: self.open_complete_batch(i))
+                    add_step_btn = ft.IconButton(ft.Icons.ADD, tooltip="Inject routing step", icon_color=PRIMARY, bgcolor="#EFF6FF", icon_size=18, padding=0, width=28, height=28, on_click=lambda e, i=item.get("id", "Unknown"): self.open_custom_step(i))
+                    undo_btn = ft.IconButton(ft.Icons.UNDO, tooltip="Revert Last Action", icon_color=TEXT_SUB, hover_color="#F1F5F9", padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item.get("id", "Unknown"): self.execute_revert(i))
+                    move_btn = ft.IconButton(ft.Icons.DRIVE_FILE_MOVE_OUTLINE, tooltip=self.t("Relocate Batch"), icon_color=WARNING, bgcolor="#FFFBEB", padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item.get("id", "Unknown"): self.open_move_dialog(i))
+                    next_btn = ft.ElevatedButton(btn_text, disabled=next_btn_disabled, style=ft.ButtonStyle(color="#FFFFFF", bgcolor=btn_color, shape=ft.RoundedRectangleBorder(radius=6), padding=ft.padding.symmetric(horizontal=12, vertical=0), text_style=ft.TextStyle(size=s(16), weight=ft.FontWeight.W_700)), height=40, on_click=lambda e, i=item.get("id", "Unknown"): self.open_confirm_step(i))
+                    complete_batch_btn = ft.ElevatedButton(self.t("Archive"), style=ft.ButtonStyle(color="#FFFFFF", bgcolor=SUCCESS, shape=ft.RoundedRectangleBorder(radius=6), padding=ft.padding.symmetric(horizontal=12, vertical=0), text_style=ft.TextStyle(size=s(16), weight=ft.FontWeight.W_700)), height=40, on_click=lambda e, i=item.get("id", "Unknown"): self.open_complete_batch(i))
 
-                    add_qty_btn = ft.IconButton(ft.Icons.ADD, icon_color=PRIMARY, bgcolor="#EFF6FF", tooltip=self.t("Add Quantity"), padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item["id"]: self.open_add_qty(i))
-                    split_btn = ft.IconButton(ft.Icons.CALL_SPLIT, icon_color=WARNING, bgcolor="#FFFBEB", tooltip=self.t("Split Batch"), padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item["id"]: self.open_split(i))
-                    merge_btn = ft.IconButton(ft.Icons.CALL_MERGE, icon_color=SUCCESS, bgcolor="#ECFDF5", tooltip=self.t("Merge Batch"), padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item["id"]: self.open_merge(i))
+                    add_qty_btn = ft.IconButton(ft.Icons.ADD, icon_color=PRIMARY, bgcolor="#EFF6FF", tooltip=self.t("Add Quantity"), padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item.get("id", "Unknown"): self.open_add_qty(i))
+                    split_btn = ft.IconButton(ft.Icons.CALL_SPLIT, icon_color=WARNING, bgcolor="#FFFBEB", tooltip=self.t("Split Batch"), padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item.get("id", "Unknown"): self.open_split(i))
+                    merge_btn = ft.IconButton(ft.Icons.CALL_MERGE, icon_color=SUCCESS, bgcolor="#ECFDF5", tooltip=self.t("Merge Batch"), padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item.get("id", "Unknown"): self.open_merge(i))
 
-                    card_content = [ft.Row([batch_display, qty_field, add_qty_btn, ft.Container(expand=True), move_btn, restock_btn], spacing=6)]
+                    card_content = [ft.Row([batch_display, qty_field, add_qty_btn, ft.Container(expand=True), pdf_btn, move_btn, restock_btn], spacing=6)]
                     
                     if item.get("parent"):
                         card_content.append(ft.Container(padding=ft.padding.only(left=5, top=4), content=ft.Row([

@@ -128,7 +128,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
         self.render_lists(None) 
         self.page.update() 
         
-    def open_batch_details(self, item_id):
+    def open_batch_details(self, item_id, edit_log_idx=None):
         item = self.get_item_by_id(item_id)
         if not item: return
         
@@ -141,19 +141,27 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
         
         for idx, s_name in enumerate(item["steps"]):
             step_time_str = ""
+            target_log_idx = -1
+            dt_obj = None
+            step_qty_val = None
+            
             if idx < step_idx:
                 icon, color = ft.Icons.CHECK_CIRCLE, SUCCESS
-                for log in reversed(item["timeline"]):
+                for log_i, log in enumerate(reversed(item["timeline"])):
                     if (log.get("idx") == idx and log["step"].startswith("Completed:")) or (log.get("idx") is None and log["step"] == f"Completed: {s_name}"): 
                         dt_obj = parse_date(log['time'])
-                        step_time_str = f"{dt_obj.strftime('%d %b %Y, %I:%M %p')} • {log.get('qty', item['quantity']):g} units"
+                        step_qty_val = log.get('qty', item['quantity'])
+                        step_time_str = f"{dt_obj.strftime('%d %b %Y')} • {step_qty_val:g} units"
+                        target_log_idx = len(item["timeline"]) - 1 - log_i
                         break
             elif idx == step_idx and is_processing:
                 icon, color = ft.Icons.MOTION_PHOTOS_ON, WARNING
-                for log in reversed(item["timeline"]):
+                for log_i, log in enumerate(reversed(item["timeline"])):
                     if (log.get("idx") == idx and log["step"].startswith("Started:")) or (log.get("idx") is None and log["step"] == f"Started: {s_name}"): 
                         dt_obj = parse_date(log['time'])
-                        step_time_str = f"{dt_obj.strftime('%d %b %Y, %I:%M %p')} • {log.get('qty', item['quantity']):g} units"
+                        step_qty_val = log.get('qty', item['quantity'])
+                        step_time_str = f"{dt_obj.strftime('%d %b %Y')} • {step_qty_val:g} units"
+                        target_log_idx = len(item["timeline"]) - 1 - log_i
                         break
             elif idx == step_idx and not is_processing:
                 icon, color = ft.Icons.RADIO_BUTTON_UNCHECKED, PRIMARY
@@ -162,18 +170,91 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                 icon, color = ft.Icons.RADIO_BUTTON_UNCHECKED, "#CBD5E1"
                 step_time_str = "Pending"
                 
+            sub_text_elements = [
+                ft.Text(f"{idx + 1}. {s_name}", size=s(16), weight=ft.FontWeight.BOLD, color=TEXT_MAIN)
+            ]
+            
+            if (idx < step_idx or (idx == step_idx and is_processing)) and target_log_idx != -1 and dt_obj and step_qty_val is not None:
+                
+                # --- NEW INLINE EDITOR LOGIC FOR QUANTITY ---
+                if edit_log_idx == target_log_idx:
+                    qty_input = ft.TextField(
+                        value=f"{step_qty_val:g}", 
+                        height=s(36), width=s(100), 
+                        content_padding=ft.padding.symmetric(horizontal=10, vertical=0),
+                        text_size=s(14), border_color=PRIMARY, focused_border_color=PRIMARY,
+                        text_style=ft.TextStyle(color=TEXT_MAIN, font_family="Jameel Noori")
+                    )
+                    
+                    def save_inline_qty(e, i=item["id"], l_i=target_log_idx, q_inp=qty_input):
+                        try:
+                            new_q = float(q_inp.value.strip())
+                            if new_q < 0: raise ValueError
+                            item_to_edit = self.get_item_by_id(i)
+                            item_to_edit["timeline"][l_i]["qty"] = new_q
+                            self.render()
+                            self.save_cb()
+                            self.show_snackbar(self.t("Quantity updated successfully!"))
+                            self.open_batch_details(i, None) # Close editor & refresh View
+                        except Exception:
+                            self.show_snackbar(self.t("Invalid quantity!"), True)
+                            
+                    edit_row = ft.Row([
+                        qty_input,
+                        ft.IconButton(ft.Icons.CHECK_CIRCLE, icon_color=SUCCESS, icon_size=s(20), padding=0, width=s(32), height=s(32), on_click=save_inline_qty, tooltip=self.t("Save")),
+                        ft.IconButton(ft.Icons.CANCEL, icon_color=WARNING, icon_size=s(20), padding=0, width=s(32), height=s(32), on_click=lambda e, i=item["id"]: self.open_batch_details(i, None), tooltip=self.t("Cancel"))
+                    ], spacing=4)
+                    
+                    sub_text_elements.append(edit_row)
+                
+                # --- STANDARD TEXT VIEW ---
+                else:
+                    date_click_container = ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.EDIT_CALENDAR, size=12, color=TEXT_SUB),
+                            ft.Text(dt_obj.strftime('%d %b %Y'), size=s(13), color=TEXT_SUB)
+                        ], spacing=2),
+                        on_click=lambda e, i=item["id"], l_i=target_log_idx, d_obj=dt_obj: self.open_step_date_picker(i, l_i, d_obj),
+                        ink=True, border_radius=4, padding=ft.padding.symmetric(horizontal=4, vertical=2),
+                        tooltip=self.t("Click to edit completion date")
+                    )
+                    
+                    qty_click_container = ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.EDIT, size=12, color=TEXT_SUB),
+                            ft.Text(f"{step_qty_val:g} {self.t('units')}", size=s(13), color=TEXT_SUB)
+                        ], spacing=2),
+                        # Opens Inline Editor directly instead of popping up another dialog!
+                        on_click=lambda e, i=item["id"], l_i=target_log_idx: self.open_batch_details(i, l_i),
+                        ink=True, border_radius=4, padding=ft.padding.symmetric(horizontal=4, vertical=2),
+                        tooltip=self.t("Click to edit quantity")
+                    )
+
+                    sub_text_elements.append(
+                        ft.Row([
+                            date_click_container,
+                            ft.Text("•", size=s(13), color=TEXT_SUB),
+                            qty_click_container
+                        ], spacing=4)
+                    )
+            else:
+                sub_text_elements.append(ft.Text(step_time_str, size=s(13), color=TEXT_SUB))
+
             details_col.controls.append(
                 ft.Container(
                     padding=10, bgcolor="#F8FAFC", border_radius=8, border=ft.border.all(1, "#E2E8F0"),
                     content=ft.Row([
                         ft.Icon(icon, color=color, size=24),
-                        ft.Column([
-                            ft.Text(f"{idx + 1}. {s_name}", size=s(16), weight=ft.FontWeight.BOLD, color=TEXT_MAIN),
-                            ft.Text(step_time_str, size=s(13), color=TEXT_SUB)
-                        ], spacing=2, expand=True)
+                        ft.Column(sub_text_elements, spacing=2, expand=True)
                     ])
                 )
             )
+
+        # --- SEAMLESS IN-PLACE UPDATE INSTEAD OF REOPENING ---
+        if getattr(self, 'active_details_dialog', None):
+            self.active_details_dialog.content.content = details_col
+            self.active_details_dialog.update()
+            return
 
         dlg = ft.AlertDialog(
             shape=ft.RoundedRectangleBorder(radius=12),
@@ -185,11 +266,20 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                 width=450, height=500,
                 content=details_col
             ),
-            actions=[
-                ft.ElevatedButton("Close", on_click=lambda e: self.page.close(dlg), style=ft.ButtonStyle(bgcolor=PRIMARY, color="white", shape=ft.RoundedRectangleBorder(radius=8)))
-            ],
-            actions_alignment=ft.MainAxisAlignment.END
+            actions_alignment=ft.MainAxisAlignment.END,
+            on_dismiss=lambda e: setattr(self, 'active_details_dialog', None)
         )
+        
+        self.active_details_dialog = dlg
+        
+        def close_details(e):
+            self.page.close(dlg)
+            self.active_details_dialog = None
+            
+        dlg.actions = [
+            ft.ElevatedButton("Close", on_click=close_details, style=ft.ButtonStyle(bgcolor=PRIMARY, color="white", shape=ft.RoundedRectangleBorder(radius=8)))
+        ]
+        
         self.page.open(dlg)
         self.page.update()
 
@@ -381,22 +471,26 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                             
                         step_time_str = ""
                         step_qty_val = item["quantity"]
+                        target_log_idx = -1
+                        dt_obj = None
                         
                         if idx < step_idx:
                             icon, color, font_w = ft.Icons.CHECK_CIRCLE, SUCCESS, ft.FontWeight.W_600
-                            for log in reversed(item["timeline"]):
+                            for log_i, log in enumerate(reversed(item["timeline"])):
                                 if (log.get("idx") == idx and log["step"].startswith("Completed:")) or (log.get("idx") is None and log["step"] == f"Completed: {s_name}"): 
                                     dt_obj = parse_date(log['time'])
                                     step_qty_val = log.get('qty', item["quantity"])
                                     step_time_str = f" • {dt_obj.strftime('%d %b %Y')} [{step_qty_val:g} {self.t('units')}]"
+                                    target_log_idx = len(item["timeline"]) - 1 - log_i
                                     break
                         elif idx == step_idx and is_processing:
                             icon, color, font_w = ft.Icons.MOTION_PHOTOS_ON, WARNING, ft.FontWeight.W_700
-                            for log in reversed(item["timeline"]):
+                            for log_i, log in enumerate(reversed(item["timeline"])):
                                 if (log.get("idx") == idx and log["step"].startswith("Started:")) or (log.get("idx") is None and log["step"] == f"Started: {s_name}"): 
                                     dt_obj = parse_date(log['time'])
                                     step_qty_val = log.get('qty', item["quantity"])
                                     step_time_str = f" • {dt_obj.strftime('%d %b %Y')} [{step_qty_val:g} {self.t('units')}]"
+                                    target_log_idx = len(item["timeline"]) - 1 - log_i
                                     break
                         elif idx == step_idx and not is_processing: icon, color, font_w = ft.Icons.RADIO_BUTTON_UNCHECKED, PRIMARY, ft.FontWeight.W_600
                         else: icon, color, font_w = ft.Icons.RADIO_BUTTON_UNCHECKED, "#CBD5E1", ft.FontWeight.W_400
@@ -406,12 +500,24 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         
                         display_step_name = f"{idx + 1}. {s_name}"
                         
+                        if idx < step_idx and target_log_idx != -1 and dt_obj:
+                            time_display = ft.Container(
+                                content=ft.Row([ft.Icon(ft.Icons.EDIT_CALENDAR, size=14, color=TEXT_SUB), ft.Text(step_time_str, size=s(14), color=TEXT_SUB)], spacing=2),
+                                on_click=lambda e, i=item["id"], l_i=target_log_idx, d_obj=dt_obj: self.open_step_date_picker(i, l_i, d_obj),
+                                ink=True,
+                                border_radius=4,
+                                padding=ft.padding.symmetric(horizontal=4, vertical=2),
+                                tooltip=self.t("Click to edit completion date")
+                            )
+                        else:
+                            time_display = ft.Text(step_time_str, size=s(14), color=TEXT_SUB)
+                        
                         step_container = ft.Container(
                             padding=ft.padding.only(left=5, right=5, top=4, bottom=4), border_radius=6, bgcolor="#F8FAFC" if (idx == step_idx) else ft.colors.TRANSPARENT, 
                             content=ft.Row([
                                 ft.Icon(icon, color=color, size=22), 
                                 ft.Text(f"{display_step_name}", size=s(20), color=TEXT_MAIN if color != "#CBD5E1" else TEXT_SUB, weight=font_w, expand=True, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS), 
-                                ft.Text(step_time_str, size=s(14), color=TEXT_SUB), 
+                                time_display, 
                                 del_btn if can_delete else ft.Container(width=20)
                             ])
                         )
@@ -456,7 +562,6 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         ft.Divider(height=10, color="#F1F5F9"), 
                         steps_visual, 
                         ft.Container(height=4), 
-                        # --- ADDED self.t() TO THIS TEXT ---
                         ft.Row([ft.Text(self.t("Inject manual step:"), size=s(12), color=TEXT_SUB, weight=ft.FontWeight.W_500), add_step_btn], alignment=ft.MainAxisAlignment.START)
                     ])
 
@@ -538,7 +643,6 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                 content=ft.Row([
                     ft.Container(width=1, height=24, bgcolor="#E2E8F0", margin=ft.margin.symmetric(horizontal=10)),
                     ft.Icon(ft.Icons.ALL_INBOX_ROUNDED, color="#64748B", size=18),
-                    # --- ADDED self.t() TO THIS TEXT ---
                     ft.Text(self.t("Global Raw Stock:"), color="#64748B", size=s(13), weight=ft.FontWeight.W_800),
                     ft.Container(content=ft.Row(stock_badges, spacing=8, scroll=ft.ScrollMode.AUTO), expand=True)
                 ], alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER)

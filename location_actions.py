@@ -7,6 +7,61 @@ def parse_qty(val):
     except (ValueError, TypeError): return None
 
 class LocationActionsMixin:
+    
+    def execute_edit_step_date(self, e):
+        if not self.step_date_picker.value or not getattr(self, 'step_date_picker_data', None):
+            return
+            
+        new_date = self.step_date_picker.value
+        item_id = self.step_date_picker_data["item_id"]
+        log_idx = self.step_date_picker_data["log_idx"]
+        
+        item = self.get_item_by_id(item_id)
+        if item and "timeline" in item and 0 <= log_idx < len(item["timeline"]):
+            old_time_str = item["timeline"][log_idx]["time"]
+            try:
+                old_dt = datetime.strptime(old_time_str, "%Y-%m-%d %I:%M %p")
+                updated_dt = new_date.replace(hour=old_dt.hour, minute=old_dt.minute)
+            except ValueError:
+                updated_dt = new_date
+                
+            item["timeline"][log_idx]["time"] = updated_dt.strftime("%Y-%m-%d %I:%M %p")
+            
+        self.step_date_picker_data = None
+        self.render()
+        self.show_snackbar(self.t("Date updated successfully!"))
+        # Immediately reopen the full details so the user sees the change
+        self.open_batch_details(item_id)
+
+    # --- NEW QTY EDIT LOGIC ---
+    def execute_edit_step_qty(self, e):
+        if not getattr(self, 'edit_step_qty_data', None): return
+        
+        try:
+            new_qty = float(self.edit_step_qty_input.value.strip())
+        except ValueError:
+            self.show_snackbar(self.t("Invalid quantity!"), True)
+            return
+            
+        if new_qty < 0:
+            self.show_snackbar(self.t("Quantity cannot be negative!"), True)
+            return
+
+        item_id = self.edit_step_qty_data["item_id"]
+        log_idx = self.edit_step_qty_data["log_idx"]
+        
+        item = self.get_item_by_id(item_id)
+        if item and "timeline" in item and 0 <= log_idx < len(item["timeline"]):
+            item["timeline"][log_idx]["qty"] = new_qty
+            
+        self.edit_step_qty_data = None
+        self.page.close(self.edit_step_qty_dialog)
+        self.render()
+        self.show_snackbar(self.t("Quantity updated successfully!"))
+        
+        # Immediately reopen the full details so the user sees the change
+        self.open_batch_details(item_id)
+
     def handle_step_swap(self, e):
         src_control = self.page.get_control(e.src_id)
         if not src_control: return
@@ -259,11 +314,11 @@ class LocationActionsMixin:
                 if pos_idx < 0: pos_idx = 0
                 if pos_idx > len(item["steps"]): pos_idx = len(item["steps"])
             
-            item["steps"].insert(pos_idx, val)
+            if pos_idx < item["step_idx"] or (pos_idx == item["step_idx"] and item.get("is_processing")):
+                self.show_snackbar(self.t("Cannot inject step into an already completed or processing position!"), True)
+                return
             
-            ptype = item["type"]
-            if ptype in self.products_config and val not in self.products_config[ptype].get("steps", []):
-                self.products_config[ptype]["steps"].append(val)
+            item["steps"].insert(pos_idx, val)
             
             if pos_idx < item["step_idx"]: item["step_idx"] += 1
             elif pos_idx == item["step_idx"] and item.get("is_processing"): item["step_idx"] += 1
@@ -307,12 +362,20 @@ class LocationActionsMixin:
     def execute_revert(self, item_id):
         item = self.get_item_by_id(item_id)
         if not item: return
+        
         if item.get("is_processing", False):
             item["is_processing"] = False
-            if item["timeline"] and "Started:" in item["timeline"][-1]["step"]: item["timeline"].pop()
+            for i in range(len(item["timeline"])-1, -1, -1):
+                if item["timeline"][i]["step"].startswith("Started:"):
+                    item["timeline"].pop(i)
+                    break
         elif item["step_idx"] > 0:
-            item["step_idx"] -= 1; item["is_processing"] = True
-            if item["timeline"] and "Completed:" in item["timeline"][-1]["step"]: item["timeline"].pop()
+            item["step_idx"] -= 1
+            item["is_processing"] = True
+            for i in range(len(item["timeline"])-1, -1, -1):
+                if item["timeline"][i]["step"].startswith("Completed:"):
+                    item["timeline"].pop(i)
+                    break
         self.render()
 
     def execute_complete_batch(self, e):

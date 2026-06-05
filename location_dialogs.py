@@ -1,4 +1,5 @@
 import flet as ft
+from datetime import datetime
 
 TEXT_MAIN = "#0F172A"
 TEXT_SUB = "#64748B"
@@ -22,6 +23,26 @@ class LocationDialogsMixin:
 
         ts_base = ft.TextStyle(font_family="Jameel Noori", color=TEXT_MAIN)
         ts_large = ft.TextStyle(font_family="Jameel Noori", size=s(18), weight=ft.FontWeight.BOLD, color=TEXT_MAIN)
+
+        self.step_date_picker = ft.DatePicker(
+            first_date=datetime(2020, 1, 1), 
+            last_date=datetime(2050, 12, 31),
+            on_change=self.execute_edit_step_date
+        )
+        self.step_date_picker_data = None
+
+        # --- NEW STEP QTY EDIT DIALOG ---
+        self.edit_step_qty_input = ft.TextField(label=self.t("New Quantity"), border_radius=8, focused_border_color=PRIMARY, autofocus=False, text_style=ts_base, on_submit=self.execute_edit_step_qty)
+        self.edit_step_qty_data = None
+        self.edit_step_qty_dialog = ft.AlertDialog(
+            shape=dlg_shape, 
+            title=ft.Text(self.t("Edit Step Quantity"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), 
+            content=self.edit_step_qty_input,
+            actions=[
+                ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.edit_step_qty_dialog), style=ft.ButtonStyle(color=TEXT_SUB, text_style=ts_base)), 
+                ft.ElevatedButton(self.t("Save"), on_click=self.execute_edit_step_qty, style=get_btn_style(PRIMARY, "#FFFFFF"))
+            ]
+        )
 
         self.l3_name_input = ft.TextField(label=self.t("Sub-Location Name"), autofocus=False, border_radius=8, focused_border_color=PRIMARY, on_submit=self.save_l3_tab, text_style=ts_base)
         self.l3_dialog = ft.AlertDialog(shape=dlg_shape, title=ft.Text(self.t("New Sub-Location"), weight=ft.FontWeight.BOLD, size=s(18), font_family="Jameel Noori"), content=self.l3_name_input, actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.l3_dialog), style=ft.ButtonStyle(color=TEXT_SUB, text_style=ts_base)), ft.ElevatedButton(self.t("Save"), on_click=self.save_l3_tab, style=get_btn_style(PRIMARY, "#FFFFFF"))])
@@ -113,6 +134,27 @@ class LocationDialogsMixin:
             content=ft.Column([self.add_qty_input, self.free_stock_checkbox], tight=True), 
             actions=[ft.TextButton(self.t("Cancel"), on_click=lambda e: self.page.close(self.add_qty_dialog), style=ft.ButtonStyle(color=TEXT_SUB, text_style=ts_base)), ft.ElevatedButton(self.t("Submit"), on_click=self.execute_add_qty, style=get_btn_style(SUCCESS, "#FFFFFF"))]
         )
+
+    # --- OPEN STEP DATE PICKER LOGIC ---
+    def open_step_date_picker(self, item_id, log_idx, current_dt_obj):
+        self.step_date_picker_data = {"item_id": item_id, "log_idx": log_idx}
+        self.step_date_picker.current_date = current_dt_obj
+        if self.step_date_picker not in self.page.overlay:
+            self.page.overlay.append(self.step_date_picker)
+            self.page.update()
+        if hasattr(self.page, "open"):
+            self.page.open(self.step_date_picker)
+        else:
+            self.step_date_picker.pick_date()
+
+    # --- OPEN STEP QTY EDIT LOGIC ---
+    def open_edit_step_qty(self, item_id, log_idx, current_qty):
+        self.edit_step_qty_data = {"item_id": item_id, "log_idx": log_idx}
+        self.edit_step_qty_input.value = f"{current_qty:g}"
+        self.page.open(self.edit_step_qty_dialog)
+        self.page.update()
+        try: self.edit_step_qty_input.focus()
+        except: pass
 
     def open_add_l3_dialog(self, e): 
         self.l3_name_input.value = ""

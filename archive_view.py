@@ -1,6 +1,7 @@
 import flet as ft
 import copy
 import os
+import webbrowser
 from datetime import datetime
 
 def parse_date(date_str):
@@ -46,6 +47,12 @@ class ArchiveLogView(ft.Container):
         self.export_selected_ids = set()
         self.export_list_col = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO, height=400)
         
+        self.export_lang_dropdown = ft.Dropdown(
+            label="Export Language",
+            options=[ft.dropdown.Option("English"), ft.dropdown.Option("Urdu (RTL)")],
+            value="English", border_radius=8, focused_border_color="#8B5CF6"
+        )
+        
         self.export_dialog = ft.AlertDialog(
             shape=ft.RoundedRectangleBorder(radius=12),
             title=ft.Row([
@@ -58,6 +65,7 @@ class ArchiveLogView(ft.Container):
                     ft.Text(self.t("Select specific batches or click Select All to generate a combined PDF report."), size=s(14), color="#64748B"),
                     ft.Container(height=5),
                     ft.Row([
+                        self.export_lang_dropdown,
                         ft.ElevatedButton("Select All", on_click=self.select_all_export, style=ft.ButtonStyle(color="#2563EB", bgcolor="#EFF6FF")),
                         ft.ElevatedButton("Deselect All", on_click=self.deselect_all_export, style=ft.ButtonStyle(color="#64748B", bgcolor="#F1F5F9"))
                     ]),
@@ -81,15 +89,7 @@ class ArchiveLogView(ft.Container):
             self.page.overlay.extend([self.start_picker, self.end_picker])
 
         self.search_input = ft.TextField(
-            hint_text=self.t("Live Search..."), 
-            prefix_icon=ft.Icons.SEARCH, 
-            border_radius=8, 
-            focused_border_color="#2563EB", 
-            height=s(40), 
-            width=s(200), 
-            content_padding=ft.padding.symmetric(horizontal=10, vertical=0), 
-            text_size=s(13), 
-            on_change=self.on_search_change
+            hint_text=self.t("Live Search..."), prefix_icon=ft.Icons.SEARCH, border_radius=8, focused_border_color="#2563EB", height=s(40), width=s(200), content_padding=ft.padding.symmetric(horizontal=10, vertical=0), text_size=s(13), on_change=self.on_search_change
         )
 
         self.start_btn = ft.ElevatedButton(f"{self.t('Start:')} {self.t('Any')}", on_click=self.open_start_date, icon=ft.Icons.CALENDAR_TODAY, style=ft.ButtonStyle(color="#0F172A", bgcolor="#F8FAFC", shape=ft.RoundedRectangleBorder(radius=8)), elevation=0)
@@ -101,9 +101,7 @@ class ArchiveLogView(ft.Container):
             content=ft.Row([
                 ft.Row([ft.Icon(ft.Icons.FILTER_ALT, color="#64748B", size=s(20)), self.filter_title]), 
                 ft.Row([
-                    self.search_input, 
-                    self.start_btn, 
-                    self.end_btn, 
+                    self.search_input, self.start_btn, self.end_btn, 
                     ft.IconButton(ft.Icons.CLOSE, on_click=self.clear_filters, tooltip=self.t("Clear Filters"), icon_color="#EF4444", bgcolor="#FEF2F2"),
                     ft.ElevatedButton("Export PDF", icon=ft.Icons.PICTURE_AS_PDF, style=ft.ButtonStyle(color="white", bgcolor="#8B5CF6", shape=ft.RoundedRectangleBorder(radius=8)), on_click=self.open_export_dialog)
                 ], wrap=True)
@@ -111,21 +109,17 @@ class ArchiveLogView(ft.Container):
         )
 
         self.list_container = ft.Column(spacing=15, expand=True, scroll=ft.ScrollMode.AUTO)
-        
-        self.content = ft.Column([
-            self.filter_container, 
-            self.list_container
-        ], expand=True)
+        self.content = ft.Column([self.filter_container, self.list_container], expand=True)
 
     def open_export_dialog(self, e):
         self.export_selected_ids.clear()
         self.render_export_list()
         self.page.open(self.export_dialog)
-        self.page.update()
 
     def select_all_export(self, e):
         for wrapper in self.filtered_items:
-            self.export_selected_ids.add(wrapper["data"].get("id", "Unknown"))
+            item_id = str(wrapper["data"].get("id", wrapper["data"].get("name", "Unknown")))
+            self.export_selected_ids.add(item_id)
         self.render_export_list()
 
     def deselect_all_export(self, e):
@@ -134,6 +128,7 @@ class ArchiveLogView(ft.Container):
 
     def toggle_export_batch(self, e, batch_id, force_state=None):
         is_checked = force_state if force_state is not None else e.control.value
+        batch_id = str(batch_id)
         if is_checked: self.export_selected_ids.add(batch_id)
         else: self.export_selected_ids.discard(batch_id)
         self.render_export_list()
@@ -142,13 +137,14 @@ class ArchiveLogView(ft.Container):
         self.export_list_col.controls.clear()
         
         def sort_key(wrapper):
-            return (0 if wrapper["data"].get("id") in self.export_selected_ids else 1, wrapper["data"].get("name", ""))
+            i_id = str(wrapper["data"].get("id", wrapper["data"].get("name", "Unknown")))
+            return (0 if i_id in self.export_selected_ids else 1, wrapper["data"].get("name", ""))
             
         sorted_items = sorted(self.filtered_items, key=sort_key)
 
         for wrapper in sorted_items:
             item = wrapper["data"]
-            item_id = item.get("id", "Unknown")
+            item_id = str(item.get("id", item.get("name", "Unknown")))
             is_checked = item_id in self.export_selected_ids
             status_txt = wrapper["status"]
             status_color = "#10B981" if status_txt == "Completed" else "#2563EB"
@@ -190,61 +186,140 @@ class ArchiveLogView(ft.Container):
         if not self.export_list_col.controls:
             self.export_list_col.controls.append(ft.Container(padding=20, alignment=ft.alignment.center, content=ft.Text("No batches match current filter.", color="#64748B", italic=True)))
             
-        self.page.update()
+        try: self.export_list_col.update()
+        except: self.page.update()
 
     def execute_pdf_export(self, e):
-        # --- DYNAMIC IMPORT FIX ---
-        try:
-            from fpdf import FPDF
-        except ImportError:
-            self.page.open(ft.SnackBar(content=ft.Text("Please install fpdf2: pip install fpdf2", color="#FFFFFF"), bgcolor="#EF4444"))
-            return
-            
+        self.page.close(self.export_dialog)
         if not self.export_selected_ids:
             self.page.open(ft.SnackBar(content=ft.Text("Please select at least one batch.", color="#FFFFFF"), bgcolor="#EF4444"))
             return
 
-        pdf = FPDF()
-        pdf.add_page()
+        is_urdu = self.export_lang_dropdown.value == "Urdu (RTL)"
+        dir_attr = "rtl" if is_urdu else "ltr"
+        lang_attr = "ur" if is_urdu else "en"
         
-        font_path = "assets/Jameel Noori.ttf"
-        has_unicode_font = False
-        if os.path.exists(font_path):
-            try:
-                pdf.add_font("JameelNoori", "", font_path)
-                has_unicode_font = True
-            except: pass
-                
-        font_name = "JameelNoori" if has_unicode_font else "Helvetica"
+        title_txt = f"فلٹر شدہ بیچ کی رپورٹ - {self.view_mode.title()}" if is_urdu else f"Filtered Batch Report - {self.view_mode.title()}"
+        report_date = datetime.now().strftime('%d %b %Y, %I:%M %p')
+        date_txt = f"رپورٹ تیار کی گئی: <bdi dir='ltr'>{report_date}</bdi>" if is_urdu else f"Generated: {report_date}"
         
-        def safe_txt(txt):
-            if has_unicode_font: return str(txt)
-            return str(txt).encode('latin-1', 'replace').decode('latin-1')
+        def t_pdf(text):
+            if not is_urdu: return text
+            pdf_dict = {"Started:": "شروع ہوا:", "Completed:": "مکمل ہوا:", "Batch Finalized & Archived": "بیچ مکمل اور محفوظ کر دیا گیا", "Qty:": "مقدار:"}
+            return pdf_dict.get(text, text)
 
-        pdf.set_font(font_name, size=18)
-        pdf.cell(200, 10, txt=f"Filtered Batch Report - {self.view_mode.title()}", ln=True, align='C')
-        pdf.cell(200, 10, txt="---------------------------------------------------------", ln=True, align='C')
+        html = f"""<!DOCTYPE html>
+        <html dir="{dir_attr}" lang="{lang_attr}">
+        <head>
+            <meta charset="utf-8">
+            <title>{title_txt}</title>
+            <style>
+                @font-face {{ font-family: 'Jameel Noori'; src: local('Jameel Noori Nastaleeq'), local('Jameel Noori'), url('assets/Jameel Noori.ttf'); }}
+                body {{ font-family: 'Jameel Noori', Tahoma, Arial, sans-serif; padding: 20px; color: #1e293b; background: #f8fafc; line-height: 1.2; }}
+                .report-box {{ background: white; border: 1px solid #e2e8f0; max-width: 800px; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden; }}
+                .header {{ background: #2563eb; color: white; padding: 15px; text-align: center; }}
+                .header h1 {{ margin: 0; font-size: 32px; font-weight: 900; letter-spacing: 0.5px; }}
+                .header p {{ margin: 5px 0 0 0; font-size: 18px; font-weight: 900; opacity: 0.95; }}
+                .batch-item {{ margin: 10px; border: 2px solid #cbd5e1; border-radius: 6px; overflow: hidden; page-break-inside: avoid; }}
+                .b-head {{ background: #f1f5f9; padding: 8px 12px; font-size: 24px; font-weight: 900; color: #0f172a; border-bottom: 2px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center; }}
+                .status-badge {{ background: #dbeafe; color: #2563eb; padding: 4px 12px; border-radius: 20px; font-size: 18px; font-weight: 900; }}
+                .status-completed {{ background: #d1fae5; color: #059669; }}
+                .log-list {{ list-style-type: none; padding: 0; margin: 0; }}
+                .log-item {{ padding: 6px 12px; border-bottom: 1px dashed #e2e8f0; display: flex; align-items: center; gap: 10px; }}
+                .log-item:last-child {{ border-bottom: none; }}
+                .time-badge {{ background: #e2e8f0; padding: 3px 8px; border-radius: 4px; font-size: 16px; font-weight: 900; color: #334155; white-space: nowrap; direction: ltr; }}
+                .step-text {{ flex-grow: 1; font-weight: 900; color: #0f172a; font-size: 20px; }}
+                .qty-text {{ font-size: 18px; color: #059669; font-weight: 900; white-space: nowrap; }}
+                
+                @media print {{ 
+                    @page {{ margin: 5mm; }} 
+                    body {{ padding: 0; background: white; }} 
+                    .report-box {{ border: none; box-shadow: none; margin: 0; max-width: 100%; }} 
+                    .header {{ padding: 12px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }} 
+                    .batch-item {{ margin: 6px 0; border: 1.5px solid #94a3b8; }}
+                    .log-item {{ padding: 4px 10px; }}
+                    .b-head, .time-badge, .status-badge {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+                }}
+            </style>
+        </head>
+        <body onload="window.print()">
+            <div class="report-box">
+                <div class="header">
+                    <h1>{title_txt}</h1>
+                    <p>{date_txt}</p>
+                </div>
+        """
 
         for wrapper in self.filtered_items:
             item = wrapper["data"]
-            if item.get("id", "Unknown") in self.export_selected_ids:
-                pdf.set_font(font_name, size=14)
-                pdf.cell(200, 10, txt=safe_txt(f"Batch: {item.get('name', 'Unknown')} ({item.get('type', '')}) - {wrapper['status']}"), ln=True)
-                pdf.set_font(font_name, size=12)
+            item_id = str(item.get("id", item.get("name", "Unknown")))
+            
+            if item_id in self.export_selected_ids:
+                b_name = str(item.get('name', 'Unknown')).replace("<", "&lt;")
+                b_type = str(item.get('type', '')).replace("<", "&lt;")
+                b_status = "Completed" if wrapper['status'] == "Completed" else "Active"
+                
+                b_title = f"{b_name} ({b_type})" if is_urdu else f"Batch: {b_name} ({b_type})"
+                b_status_ur = "مکمل" if b_status == "Completed" else "ایکٹو"
+                stat_class = "status-badge status-completed" if b_status == "Completed" else "status-badge"
+                stat_display = b_status_ur if is_urdu else b_status
+                
+                html += f"""
+                    <div class="batch-item">
+                        <div class="b-head">
+                            <span>{b_title}</span>
+                            <span class="{stat_class}">{stat_display}</span>
+                        </div>
+                        <ul class="log-list">
+                """
                 
                 for log in item.get("timeline", []):
-                    pdf.cell(200, 8, txt=safe_txt(f"   [{log.get('time', '')}] {log.get('step', '')} (Qty: {log.get('qty', item.get('quantity', 0))})"), ln=True)
-                
-                pdf.cell(200, 5, txt="", ln=True)
+                    raw_step = log.get('step', '')
+                    
+                    # STRICT FILTER: Only show main production steps
+                    if not any(x in raw_step for x in ["Started:", "Completed:", "Batch Finalized"]):
+                        continue
 
-        file_path = os.path.join(os.path.expanduser("~"), "Desktop", f"Batch_Report_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf")
+                    qty_val = log.get('qty', item.get('quantity', 0))
+                    time_str = log.get('time', '').replace("<", "&lt;")
+                    
+                    custom_name = raw_step.replace("<", "&lt;")
+                    prefix = ""
+                    if raw_step.startswith("Started:"):
+                        prefix = t_pdf("Started:")
+                        custom_name = raw_step[8:].strip().replace("<", "&lt;")
+                    elif raw_step.startswith("Completed:"):
+                        prefix = t_pdf("Completed:")
+                        custom_name = raw_step[10:].strip().replace("<", "&lt;")
+                    elif "Batch Finalized" in raw_step:
+                        prefix = t_pdf("Batch Finalized & Archived")
+                        custom_name = ""
+                        
+                    step_html = f"<span style='color:#64748b; font-weight:900;'>{prefix}</span> {custom_name}".strip()
+                    
+                    html += f"""
+                            <li class="log-item">
+                                <span class="time-badge"><bdi dir="ltr">{time_str}</bdi></span>
+                                <span class="step-text">{step_html}</span>
+                                <span class="qty-text">{t_pdf("Qty:")} <bdi dir="ltr">{qty_val:g}</bdi></span>
+                            </li>
+                    """
+                html += "</ul></div>"
+                
+        html += "</div></body></html>"
+
+        export_dir = os.path.join(os.getcwd(), "Exported_PDFs")
+        os.makedirs(export_dir, exist_ok=True)
+        lang_suffix = "Urdu" if is_urdu else "English"
+        file_path = os.path.join(export_dir, f"Archive_Report_{self.view_mode}_{datetime.now().strftime('%Y%m%d')}_{lang_suffix}.html")
         
         try:
-            pdf.output(file_path)
-            self.page.close(self.export_dialog)
-            self.page.open(ft.SnackBar(content=ft.Text(f"PDF saved to Desktop: {os.path.basename(file_path)}", color="#FFFFFF"), bgcolor="#10B981"))
+            with open(file_path, "w", encoding="utf-8") as f: f.write(html)
+            if os.name == 'nt': os.startfile(file_path)
+            else: webbrowser.open(f"file://{os.path.abspath(file_path)}")
+            self.page.open(ft.SnackBar(content=ft.Text("Printable Report Opened!", color="#FFFFFF"), bgcolor="#10B981"))
         except Exception as ex:
-            self.page.open(ft.SnackBar(content=ft.Text(f"PDF generation failed: {str(ex)}", color="#FFFFFF"), bgcolor="#EF4444"))
+            self.page.open(ft.SnackBar(content=ft.Text(f"Export failed: {str(ex)}", color="#FFFFFF"), bgcolor="#EF4444"))
 
     def open_revert_dialog(self, batch_name):
         self.revert_target_name = batch_name
@@ -325,7 +400,7 @@ class ArchiveLogView(ft.Container):
             for item in self.tab_data.get("active", []):
                 all_items.append({"data": item, "status": "Active"})
             
-        filtered_items = []
+        self.filtered_items = []
         for wrapper in all_items:
             item = wrapper["data"]
             
@@ -348,15 +423,15 @@ class ArchiveLogView(ft.Container):
             dt = parse_date(dt_str)
             if self.start_date and dt.date() < self.start_date.date(): continue
             if self.end_date and dt.date() > self.end_date.date(): continue
-            filtered_items.append(wrapper)
+            self.filtered_items.append(wrapper)
 
-        if not filtered_items:
+        if not self.filtered_items:
             self.list_container.controls.append(ft.Container(padding=40, alignment=ft.alignment.center, content=ft.Text(self.t("No tracking logs match the current filters."), color="#64748B", size=s(16))))
             try: self.list_container.update() 
             except: pass
             return
 
-        for wrapper in filtered_items:
+        for wrapper in self.filtered_items:
             item = wrapper["data"]
             
             step_font_size = 22 if self.view_mode == "archive" else 21
@@ -384,7 +459,7 @@ class ArchiveLogView(ft.Container):
                         custom_name = ""
 
                     translated_prefix = self.t(prefix) + " " if prefix else ""
-                    qty_str = f"  [{log['qty']:g} {self.t('units')}]" if 'qty' in log else ""
+                    qty_str = f"  [{log.get('qty', item.get('quantity', 0)):g} {self.t('units')}]"
                     
                     text_spans = []
                     if translated_prefix:

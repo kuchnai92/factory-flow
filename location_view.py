@@ -1,6 +1,7 @@
 import flet as ft
 from datetime import datetime
 import os
+import webbrowser
 from archive_view import ArchiveLogView
 from location_actions import LocationActionsMixin, parse_qty
 from location_dialogs import LocationDialogsMixin
@@ -41,9 +42,25 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
         self.current_process_product = None 
         self.active_product_filter = None
         self.pending_step_swap = None 
+        self.active_pdf_item_id = None
 
         def s(size): return int(size * self.scale_factor)
         self.s = s
+
+        self.pdf_share_lang_dropdown = ft.Dropdown(
+            label="Select PDF Language",
+            options=[ft.dropdown.Option("English"), ft.dropdown.Option("Urdu (RTL)")],
+            value="English", border_radius=8, focused_border_color="#8B5CF6", width=300
+        )
+        self.pdf_share_dialog = ft.AlertDialog(
+            shape=ft.RoundedRectangleBorder(radius=12),
+            title=ft.Row([ft.Icon(ft.Icons.PICTURE_AS_PDF, color="#8B5CF6"), ft.Text("Export Batch Report", weight=ft.FontWeight.BOLD)]),
+            content=ft.Column([ft.Text("Choose the language and format for your PDF report:"), self.pdf_share_lang_dropdown], tight=True),
+            actions=[
+                ft.TextButton("Cancel", on_click=lambda e: self.page.close(self.pdf_share_dialog)),
+                ft.ElevatedButton("Generate PDF", icon=ft.Icons.DOWNLOAD, style=ft.ButtonStyle(color="white", bgcolor="#8B5CF6", shape=ft.RoundedRectangleBorder(radius=8)), on_click=self.execute_pdf_share)
+            ]
+        )
 
         self.l3_tabs = ft.Tabs(selected_index=0, on_change=self.on_l3_tab_change, animation_duration=300, expand=True)
         self.edit_l3_btn = ft.IconButton(icon=ft.Icons.EDIT, icon_color="#60A5FA", tooltip=self.t("Edit Location"), on_click=self.on_edit_l3_click)
@@ -70,56 +87,127 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
 
         self.archive_view = ArchiveLogView(self.page, self.t, self.scale_factor, self.revert_archived_batch)
 
-    def generate_pdf_share(self, item_id):
-        # --- DYNAMIC IMPORT FIX ---
-        try:
-            from fpdf import FPDF
-        except ImportError:
-            self.page.open(ft.SnackBar(content=ft.Text("Please install fpdf2: pip install fpdf2", color="#FFFFFF"), bgcolor="#EF4444"))
-            return
+    def open_pdf_share_dialog(self, item_id):
+        self.active_pdf_item_id = item_id
+        self.page.open(self.pdf_share_dialog)
+        self.page.update()
 
-        item = self.get_item_by_id(item_id)
+    def execute_pdf_share(self, e):
+        self.page.close(self.pdf_share_dialog)
+        is_urdu = self.pdf_share_lang_dropdown.value == "Urdu (RTL)"
+        
+        dir_attr = "rtl" if is_urdu else "ltr"
+        lang_attr = "ur" if is_urdu else "en"
+
+        item = self.get_item_by_id(self.active_pdf_item_id)
         if not item: return
 
-        pdf = FPDF()
-        pdf.add_page()
+        title_txt = "تفصیلی بیچ کی رپورٹ" if is_urdu else "Detailed Batch Report"
         
-        font_path = "assets/Jameel Noori.ttf"
-        has_unicode_font = False
-        if os.path.exists(font_path):
-            try:
-                pdf.add_font("JameelNoori", "", font_path)
-                has_unicode_font = True
-            except: pass
+        def t_pdf(text):
+            if not is_urdu: return text
+            pdf_dict = {"Started:": "شروع ہوا:", "Completed:": "مکمل ہوا:", "Batch Finalized & Archived": "بیچ مکمل اور محفوظ کر دیا گیا", "Product:": "مصنوعات:", "Total Quantity:": "کل مقدار:", "Qty:": "مقدار:"}
+            return pdf_dict.get(text, text)
+
+        b_name = str(item.get('name', 'Unknown')).replace("<", "&lt;")
+        b_type = str(item.get('type', '')).replace("<", "&lt;")
+        b_qty = item.get('quantity', 0)
+        
+        b_title = f"{b_name} - {b_type}" if is_urdu else f"Batch: {b_name}"
+        sub_txt = f"{t_pdf('Product:')} {b_type} | {t_pdf('Total Quantity:')} <bdi dir='ltr'>{b_qty:g}</bdi>"
+
+        html = f"""<!DOCTYPE html>
+        <html dir="{dir_attr}" lang="{lang_attr}">
+        <head>
+            <meta charset="utf-8">
+            <title>{title_txt}</title>
+            <style>
+                @font-face {{ font-family: 'Jameel Noori'; src: local('Jameel Noori Nastaleeq'), local('Jameel Noori'), url('assets/Jameel Noori.ttf'); }}
+                body {{ font-family: 'Jameel Noori', Tahoma, Arial, sans-serif; padding: 20px; color: #1e293b; background: #f8fafc; line-height: 1.2; }}
+                .report-box {{ background: white; border: 1px solid #e2e8f0; max-width: 800px; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden; }}
+                .header {{ background: #2563eb; color: white; padding: 15px; text-align: center; }}
+                .header h1 {{ margin: 0; font-size: 32px; font-weight: 900; letter-spacing: 0.5px; }}
+                .header p {{ margin: 5px 0 0 0; font-size: 18px; font-weight: 900; opacity: 0.95; }}
+                .batch-item {{ margin: 10px; border: 2px solid #cbd5e1; border-radius: 6px; overflow: hidden; page-break-inside: avoid; }}
+                .b-head {{ background: #f1f5f9; padding: 8px 12px; font-size: 24px; font-weight: 900; color: #0f172a; border-bottom: 2px solid #cbd5e1; }}
+                .log-list {{ list-style-type: none; padding: 0; margin: 0; }}
+                .log-item {{ padding: 6px 12px; border-bottom: 1px dashed #e2e8f0; display: flex; align-items: center; gap: 10px; }}
+                .log-item:last-child {{ border-bottom: none; }}
+                .time-badge {{ background: #e2e8f0; padding: 3px 8px; border-radius: 4px; font-size: 16px; font-weight: 900; color: #334155; white-space: nowrap; direction: ltr; }}
+                .step-text {{ flex-grow: 1; font-weight: 900; color: #0f172a; font-size: 20px; }}
+                .qty-text {{ font-size: 18px; color: #059669; font-weight: 900; white-space: nowrap; }}
                 
-        font_name = "JameelNoori" if has_unicode_font else "Helvetica"
+                @media print {{ 
+                    @page {{ margin: 5mm; }} 
+                    body {{ padding: 0; background: white; }} 
+                    .report-box {{ border: none; box-shadow: none; margin: 0; max-width: 100%; }} 
+                    .header {{ padding: 12px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }} 
+                    .batch-item {{ margin: 6px 0; border: 1.5px solid #94a3b8; }}
+                    .log-item {{ padding: 4px 10px; }}
+                    .b-head, .time-badge {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+                }}
+            </style>
+        </head>
+        <body onload="window.print()">
+            <div class="report-box">
+                <div class="header">
+                    <h1>{title_txt}</h1>
+                    <p>{sub_txt}</p>
+                </div>
+                <div class="batch-item">
+                    <div class="b-head">{b_title}</div>
+                    <ul class="log-list">
+        """
         
-        def safe_txt(txt):
-            if has_unicode_font: return str(txt)
-            return str(txt).encode('latin-1', 'replace').decode('latin-1')
-
-        pdf.set_font(font_name, size=16)
-        pdf.cell(200, 10, txt=safe_txt(f"Batch Report: {item.get('name', 'Unknown')}"), ln=True, align='C')
-        
-        pdf.set_font(font_name, size=12)
-        pdf.cell(200, 10, txt=safe_txt(f"Product: {item.get('type', '')} | Quantity: {item.get('quantity', 0)}"), ln=True, align='C')
-        pdf.cell(200, 10, txt="---------------------------------------------------------", ln=True, align='C')
-        
-        pdf.set_font(font_name, size=14)
-        pdf.cell(200, 10, txt="Timeline History", ln=True)
-        pdf.set_font(font_name, size=12)
-
         for log in item.get("timeline", []):
-            pdf.cell(200, 10, txt=safe_txt(f"[{log.get('time', '')}] {log.get('step', '')} - Qty: {log.get('qty', item.get('quantity', 0))}"), ln=True)
+            raw_step = log.get('step', '')
+            
+            # STRICT FILTER: Only meaningful production steps
+            if not any(x in raw_step for x in ["Started:", "Completed:", "Batch Finalized"]):
+                continue
 
+            qty_val = log.get('qty', b_qty)
+            time_str = log.get('time', '').replace("<", "&lt;")
+            
+            custom_name = raw_step.replace("<", "&lt;")
+            prefix = ""
+            if raw_step.startswith("Started:"):
+                prefix = t_pdf("Started:")
+                custom_name = raw_step[8:].strip().replace("<", "&lt;")
+            elif raw_step.startswith("Completed:"):
+                prefix = t_pdf("Completed:")
+                custom_name = raw_step[10:].strip().replace("<", "&lt;")
+            elif "Batch Finalized" in raw_step:
+                prefix = t_pdf("Batch Finalized & Archived")
+                custom_name = ""
+                
+            step_html = f"<span style='color:#64748b; font-weight:900;'>{prefix}</span> {custom_name}".strip()
+            
+            html += f"""
+                    <li class="log-item">
+                        <span class="time-badge"><bdi dir="ltr">{time_str}</bdi></span>
+                        <span class="step-text">{step_html}</span>
+                        <span class="qty-text">{t_pdf("Qty:")} <bdi dir="ltr">{qty_val:g}</bdi></span>
+                    </li>
+            """
+        html += "</ul></div></div></body></html>"
+
+        export_dir = os.path.join(os.getcwd(), "Exported_PDFs")
+        os.makedirs(export_dir, exist_ok=True)
+            
         safe_filename = "".join([c for c in item.get('name', 'Share') if c.isalpha() or c.isdigit() or c==' ']).rstrip()
-        file_path = os.path.join(os.path.expanduser("~"), "Desktop", f"Batch_{safe_filename.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf")
+        lang_suffix = "Urdu" if is_urdu else "English"
+        
+        file_path = os.path.join(export_dir, f"Batch_{safe_filename.replace(' ', '_')}_{lang_suffix}.html")
         
         try:
-            pdf.output(file_path)
-            self.page.open(ft.SnackBar(content=ft.Text(f"PDF saved to Desktop: {os.path.basename(file_path)}", color="#FFFFFF"), bgcolor="#10B981"))
+            with open(file_path, "w", encoding="utf-8") as f: f.write(html)
+            if os.name == 'nt': os.startfile(file_path)
+            else: webbrowser.open(f"file://{os.path.abspath(file_path)}")
+            self.page.open(ft.SnackBar(content=ft.Text("Printable Report Opened!", color="#FFFFFF"), bgcolor="#10B981"))
         except Exception as ex:
-            self.page.open(ft.SnackBar(content=ft.Text(f"PDF generation failed: {str(ex)}", color="#FFFFFF"), bgcolor="#EF4444"))
+            self.page.open(ft.SnackBar(content=ft.Text(f"Export failed: {str(ex)}", color="#FFFFFF"), bgcolor="#EF4444"))
+
 
     def show_snackbar(self, msg, is_error=False): 
         self.page.open(ft.SnackBar(content=ft.Text(msg, color="#FFFFFF", weight=ft.FontWeight.W_500, size=self.s(14)), bgcolor="#EF4444" if is_error else "#10B981", behavior=ft.SnackBarBehavior.FLOATING, margin=20, shape=ft.RoundedRectangleBorder(radius=8)))
@@ -136,7 +224,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
         if not data_ctx["tabs"]: return None
         active_items = data_ctx["data"][data_ctx["tabs"][data_ctx["active_tab"]]]["active"]
         for item in active_items:
-            if item.get("id", "Unknown") == item_id: return (item, active_items) if return_list else item
+            if str(item.get("id", item.get("name", "Unknown"))) == str(item_id): return (item, active_items) if return_list else item
         return None
 
     def get_all_batch_names_for_product(self, ptype):
@@ -235,7 +323,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         text_style=ft.TextStyle(color=TEXT_MAIN, font_family="Jameel Noori")
                     )
                     
-                    def save_inline_qty(e, i=item.get("id", "Unknown"), l_i=target_log_idx, q_inp=qty_input):
+                    def save_inline_qty(e, i=str(item.get("id", item.get("name", "Unknown"))), l_i=target_log_idx, q_inp=qty_input):
                         try:
                             new_q = float(q_inp.value.strip())
                             if new_q < 0: raise ValueError
@@ -251,7 +339,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                     edit_row = ft.Row([
                         qty_input,
                         ft.IconButton(ft.Icons.CHECK_CIRCLE, icon_color=SUCCESS, icon_size=s(20), padding=0, width=s(32), height=s(32), on_click=save_inline_qty, tooltip=self.t("Save")),
-                        ft.IconButton(ft.Icons.CANCEL, icon_color=WARNING, icon_size=s(20), padding=0, width=s(32), height=s(32), on_click=lambda e, i=item.get("id", "Unknown"): self.open_batch_details(i, None), tooltip=self.t("Cancel"))
+                        ft.IconButton(ft.Icons.CANCEL, icon_color=WARNING, icon_size=s(20), padding=0, width=s(32), height=s(32), on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))): self.open_batch_details(i, None), tooltip=self.t("Cancel"))
                     ], spacing=4)
                     
                     sub_text_elements.append(edit_row)
@@ -261,7 +349,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                             ft.Icon(ft.Icons.EDIT_CALENDAR, size=12, color=TEXT_SUB),
                             ft.Text(dt_obj.strftime('%d %b %Y'), size=s(13), color=TEXT_SUB)
                         ], spacing=2),
-                        on_click=lambda e, i=item.get("id", "Unknown"), l_i=target_log_idx, d_obj=dt_obj: self.open_step_date_picker(i, l_i, d_obj),
+                        on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))), l_i=target_log_idx, d_obj=dt_obj: self.open_step_date_picker(i, l_i, d_obj),
                         ink=True, border_radius=4, padding=ft.padding.symmetric(horizontal=4, vertical=2),
                         tooltip=self.t("Click to edit completion date")
                     )
@@ -271,7 +359,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                             ft.Icon(ft.Icons.EDIT, size=12, color=TEXT_SUB),
                             ft.Text(f"{step_qty_val:g} {self.t('units')}", size=s(13), color=TEXT_SUB)
                         ], spacing=2),
-                        on_click=lambda e, i=item.get("id", "Unknown"), l_i=target_log_idx: self.open_batch_details(i, l_i),
+                        on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))), l_i=target_log_idx: self.open_batch_details(i, l_i),
                         ink=True, border_radius=4, padding=ft.padding.symmetric(horizontal=4, vertical=2),
                         tooltip=self.t("Click to edit quantity")
                     )
@@ -492,7 +580,7 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         bgcolor="#EFF6FF",
                         border_radius=8,
                         alignment=ft.alignment.center,
-                        on_click=lambda e, i=item.get("id", "Unknown"): self.open_batch_details(i),
+                        on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))): self.open_batch_details(i),
                         ink=True,
                         tooltip=self.t("Click to view full step history"),
                         content=ft.Row([
@@ -501,11 +589,11 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         ], spacing=6)
                     )
 
-                    qty_field = make_input(f"{item['quantity']:g}", self.t("Qty"), s(80), lambda e, i=item.get("id", "Unknown"): None, read_only=True)
+                    qty_field = make_input(f"{item['quantity']:g}", self.t("Qty"), s(80), lambda e, i=str(item.get("id", item.get("name", "Unknown"))): None, read_only=True)
                     
-                    restock_btn = ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#EF4444", tooltip=self.t("Cancel & Restock"), padding=0, width=36, height=36, icon_size=22, on_click=lambda e, i=item.get("id", "Unknown"): self.open_cancel_to_stock_dialog(i))
+                    restock_btn = ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#EF4444", tooltip=self.t("Cancel & Restock"), padding=0, width=36, height=36, icon_size=22, on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))): self.open_cancel_to_stock_dialog(i))
                     
-                    pdf_btn = ft.IconButton(ft.Icons.PICTURE_AS_PDF, icon_color="#8B5CF6", tooltip=self.t("Share/Export PDF"), padding=0, width=36, height=36, icon_size=22, on_click=lambda e, i=item.get("id", "Unknown"): self.generate_pdf_share(i))
+                    pdf_btn = ft.IconButton(ft.Icons.PICTURE_AS_PDF, icon_color="#8B5CF6", tooltip=self.t("Share/Export PDF"), padding=0, width=36, height=36, icon_size=22, on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))): self.open_pdf_share_dialog(i))
 
                     max_steps = len(item["steps"]); step_idx = item["step_idx"]; is_processing = item.get("is_processing", False)
                     
@@ -543,14 +631,14 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         else: icon, color, font_w = ft.Icons.RADIO_BUTTON_UNCHECKED, "#CBD5E1", ft.FontWeight.W_400
                             
                         can_delete = (idx > step_idx) or (idx == step_idx and not is_processing)
-                        del_btn = ft.IconButton(ft.Icons.CLOSE, icon_color="#EF4444", icon_size=16, padding=0, width=20, height=20, on_click=lambda e, i=item.get("id", "Unknown"), s_i=idx: self.confirm_delete_specific_step(i, s_i))
+                        del_btn = ft.IconButton(ft.Icons.CLOSE, icon_color="#EF4444", icon_size=16, padding=0, width=20, height=20, on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))), s_i=idx: self.confirm_delete_specific_step(i, s_i))
                         
                         display_step_name = f"{idx + 1}. {s_name}"
                         
                         if idx < step_idx and target_log_idx != -1 and dt_obj:
                             time_display = ft.Container(
                                 content=ft.Row([ft.Icon(ft.Icons.EDIT_CALENDAR, size=14, color=TEXT_SUB), ft.Text(step_time_str, size=s(14), color=TEXT_SUB)], spacing=2),
-                                on_click=lambda e, i=item.get("id", "Unknown"), l_i=target_log_idx, d_obj=dt_obj: self.open_step_date_picker(i, l_i, d_obj),
+                                on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))), l_i=target_log_idx, d_obj=dt_obj: self.open_step_date_picker(i, l_i, d_obj),
                                 ink=True,
                                 border_radius=4,
                                 padding=ft.padding.symmetric(horizontal=4, vertical=2),
@@ -570,14 +658,14 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                         )
                         
                         draggable_step = ft.Draggable(
-                            group=f"steps_{item.get('id', 'Unknown')}", 
-                            data={"item_id": item.get("id", "Unknown"), "step_idx": idx},
+                            group=f"steps_{str(item.get('id', item.get('name', 'Unknown')))}", 
+                            data={"item_id": str(item.get("id", item.get("name", "Unknown"))), "step_idx": idx},
                             content=step_container
                         )
                         
                         drop_target = ft.DragTarget(
-                            group=f"steps_{item.get('id', 'Unknown')}",
-                            data={"item_id": item.get("id", "Unknown"), "step_idx": idx},
+                            group=f"steps_{str(item.get('id', item.get('name', 'Unknown')))}",
+                            data={"item_id": str(item.get("id", item.get("name", "Unknown"))), "step_idx": idx},
                             content=draggable_step,
                             on_accept=self.handle_step_swap
                         )
@@ -587,15 +675,15 @@ class LocationView(ft.Container, LocationActionsMixin, LocationDialogsMixin):
                     if step_idx >= max_steps: btn_text, btn_color, next_btn_disabled = self.t("Ready to Archive"), "#CBD5E1", True 
                     else: btn_text, btn_color, next_btn_disabled = (self.t("Finish Step") if is_processing else self.t("Start Step")), ("#0D9488" if is_processing else PRIMARY), False 
 
-                    add_step_btn = ft.IconButton(ft.Icons.ADD, tooltip="Inject routing step", icon_color=PRIMARY, bgcolor="#EFF6FF", icon_size=18, padding=0, width=28, height=28, on_click=lambda e, i=item.get("id", "Unknown"): self.open_custom_step(i))
-                    undo_btn = ft.IconButton(ft.Icons.UNDO, tooltip="Revert Last Action", icon_color=TEXT_SUB, hover_color="#F1F5F9", padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item.get("id", "Unknown"): self.execute_revert(i))
-                    move_btn = ft.IconButton(ft.Icons.DRIVE_FILE_MOVE_OUTLINE, tooltip=self.t("Relocate Batch"), icon_color=WARNING, bgcolor="#FFFBEB", padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item.get("id", "Unknown"): self.open_move_dialog(i))
-                    next_btn = ft.ElevatedButton(btn_text, disabled=next_btn_disabled, style=ft.ButtonStyle(color="#FFFFFF", bgcolor=btn_color, shape=ft.RoundedRectangleBorder(radius=6), padding=ft.padding.symmetric(horizontal=12, vertical=0), text_style=ft.TextStyle(size=s(16), weight=ft.FontWeight.W_700)), height=40, on_click=lambda e, i=item.get("id", "Unknown"): self.open_confirm_step(i))
-                    complete_batch_btn = ft.ElevatedButton(self.t("Archive"), style=ft.ButtonStyle(color="#FFFFFF", bgcolor=SUCCESS, shape=ft.RoundedRectangleBorder(radius=6), padding=ft.padding.symmetric(horizontal=12, vertical=0), text_style=ft.TextStyle(size=s(16), weight=ft.FontWeight.W_700)), height=40, on_click=lambda e, i=item.get("id", "Unknown"): self.open_complete_batch(i))
+                    add_step_btn = ft.IconButton(ft.Icons.ADD, tooltip="Inject routing step", icon_color=PRIMARY, bgcolor="#EFF6FF", icon_size=18, padding=0, width=28, height=28, on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))): self.open_custom_step(i))
+                    undo_btn = ft.IconButton(ft.Icons.UNDO, tooltip="Revert Last Action", icon_color=TEXT_SUB, hover_color="#F1F5F9", padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))): self.execute_revert(i))
+                    move_btn = ft.IconButton(ft.Icons.DRIVE_FILE_MOVE_OUTLINE, tooltip=self.t("Relocate Batch"), icon_color=WARNING, bgcolor="#FFFBEB", padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))): self.open_move_dialog(i))
+                    next_btn = ft.ElevatedButton(btn_text, disabled=next_btn_disabled, style=ft.ButtonStyle(color="#FFFFFF", bgcolor=btn_color, shape=ft.RoundedRectangleBorder(radius=6), padding=ft.padding.symmetric(horizontal=12, vertical=0), text_style=ft.TextStyle(size=s(16), weight=ft.FontWeight.W_700)), height=40, on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))): self.open_confirm_step(i))
+                    complete_batch_btn = ft.ElevatedButton(self.t("Archive"), style=ft.ButtonStyle(color="#FFFFFF", bgcolor=SUCCESS, shape=ft.RoundedRectangleBorder(radius=6), padding=ft.padding.symmetric(horizontal=12, vertical=0), text_style=ft.TextStyle(size=s(16), weight=ft.FontWeight.W_700)), height=40, on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))): self.open_complete_batch(i))
 
-                    add_qty_btn = ft.IconButton(ft.Icons.ADD, icon_color=PRIMARY, bgcolor="#EFF6FF", tooltip=self.t("Add Quantity"), padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item.get("id", "Unknown"): self.open_add_qty(i))
-                    split_btn = ft.IconButton(ft.Icons.CALL_SPLIT, icon_color=WARNING, bgcolor="#FFFBEB", tooltip=self.t("Split Batch"), padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item.get("id", "Unknown"): self.open_split(i))
-                    merge_btn = ft.IconButton(ft.Icons.CALL_MERGE, icon_color=SUCCESS, bgcolor="#ECFDF5", tooltip=self.t("Merge Batch"), padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=item.get("id", "Unknown"): self.open_merge(i))
+                    add_qty_btn = ft.IconButton(ft.Icons.ADD, icon_color=PRIMARY, bgcolor="#EFF6FF", tooltip=self.t("Add Quantity"), padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))): self.open_add_qty(i))
+                    split_btn = ft.IconButton(ft.Icons.CALL_SPLIT, icon_color=WARNING, bgcolor="#FFFBEB", tooltip=self.t("Split Batch"), padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))): self.open_split(i))
+                    merge_btn = ft.IconButton(ft.Icons.CALL_MERGE, icon_color=SUCCESS, bgcolor="#ECFDF5", tooltip=self.t("Merge Batch"), padding=0, width=36, height=36, icon_size=20, on_click=lambda e, i=str(item.get("id", item.get("name", "Unknown"))): self.open_merge(i))
 
                     card_content = [ft.Row([batch_display, qty_field, add_qty_btn, ft.Container(expand=True), pdf_btn, move_btn, restock_btn], spacing=6)]
                     

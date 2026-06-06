@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+        <html dir="ltr" lang="en">
+        <head>
+            <meta charset="utf-8">
+            <title>Filtered Batch Report - Live</title>
+            <style>
+                @font-face { font-family: 'Jameel Noori'; src: local('Jameel Noori Nastaleeq'), local('Jameel Noori'), url('assets/Jameel Noori.ttf'); }
+                body { font-family: 'Jameel Noori', Tahoma, Arial, sans-serif; padding: 20px; color: #334155; background: #f8fafc; line-height: 1.4; }
+                .report-box { background: white; border: 1px solid #e2e8f0; max-width: 800px; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden; }
+                .header { background: #2563eb; color: white; padding: 20px; text-align: center; }
+                .header h1 { margin: 0; font-size: 24px; font-weight: bold; }
+                .header p { margin: 5px 0 0 0; font-size: 14px; opacity: 0.9; }
+                .batch-item { margin: 15px; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; page-break-inside: avoid; }
+                .b-head { background: #f1f5f9; padding: 10px 15px; font-size: 18px; font-weight: bold; color: #0f172a; border-bottom: 1px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center; }
+                .status-badge { background: #dbeafe; color: #2563eb; padding: 4px 12px; border-radius: 20px; font-size: 14px; font-weight: normal; }
+                .status-completed { background: #d1fae5; color: #059669; }
+                .log-list { list-style-type: none; padding: 0; margin: 0; }
+                .log-item { padding: 8px 15px; border-bottom: 1px dashed #e2e8f0; display: flex; align-items: center; gap: 10px; }
+                .log-item:last-child { border-bottom: none; }
+                .time-badge { background: #e2e8f0; padding: 3px 8px; border-radius: 4px; font-size: 12px; color: #475569; white-space: nowrap; }
+                .step-text { flex-grow: 1; font-weight: 600; color: #1e293b; font-size: 15px; }
+                .qty-text { font-size: 14px; color: #10b981; font-weight: bold; white-space: nowrap; }
+                
+                @media print { 
+                    @page { margin: 10mm; } 
+                    body { padding: 0; background: white; } 
+                    .report-box { border: none; box-shadow: none; margin: 0; max-width: 100%; } 
+                    .header { padding: 10px; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
+                    .batch-item { margin: 10px 0; border: 1px solid #cbd5e1; }
+                    .b-head, .time-badge, .status-badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                }
+            </style>
+        </head>
+        <body onload="window.print()">
+            <div class="report-box">
+                <div class="header">
+                    <h1>Filtered Batch Report - Live</h1>
+                    <p>Generated: 06 Jun 2026, 12:57 PM</p>
+                </div>
+        
+                    <div class="batch-item">
+                        <div class="b-head">
+                            <span>Batch: Batch 2 (fsdf)</span>
+                            <span class="status-badge">Active</span>
+                        </div>
+                        <ul class="log-list">
+                
+                            <li class="log-item">
+                                <span class="time-badge">2026-06-04 01:48 PM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'></span> Created from Stock</span>
+                                <span class="qty-text">Qty: 3</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-06-04 01:55 PM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'>Started:</span> s</span>
+                                <span class="qty-text">Qty: 3</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-06-04 01:55 PM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'>Completed:</span> s</span>
+                                <span class="qty-text">Qty: 3</span>
+                            </li>
+                    </ul></div>
+                    <div class="batch-item">
+                        <div class="b-head">
+                            <span>Batch: Batch 1 (sdfs)</span>
+                            <span class="status-badge">Active</span>
+                        </div>
+                        <ul class="log-list">
+                
+                            <li class="log-item">
+                                <span class="time-badge">2026-06-04 11:57 PM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'></span> Created from Stock</span>
+                                <span class="qty-text">Qty: 1</span>
+                            </li>
+                    </ul></div>
+                    <div class="batch-item">
+                        <div class="b-head">
+                            <span>Batch: Batch 1 (گاجر)</span>
+                            <span class="status-badge">Active</span>
+                        </div>
+                        <ul class="log-list">
+                
+                            <li class="log-item">
+                                <span class="time-badge">2026-03-25 08:49 PM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'></span> Created from Stock</span>
+                                <span class="qty-text">Qty: 6</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-03-25 09:31 PM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'></span> Added 5 units from stock</span>
+                                <span class="qty-text">Qty: 6</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-03-25 09:32 PM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'>Batch Finalized & Archived</span></span>
+                                <span class="qty-text">Qty: 6</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-03-25 09:32 PM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'></span> Reverted from Archive</span>
+                                <span class="qty-text">Qty: 6</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-03-25 09:39 PM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'>Batch Finalized & Archived</span></span>
+                                <span class="qty-text">Qty: 6</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-03-25 09:39 PM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'></span> Reverted from Archive</span>
+                                <span class="qty-text">Qty: 6</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-03-26 10:25 AM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'></span> Relocated: [1 > h > i] → [1 > h > i]</span>
+                                <span class="qty-text">Qty: 6</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-03-26 10:26 AM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'></span> Relocated: [1 > h > i] → [1 > h > i]</span>
+                                <span class="qty-text">Qty: 6</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-03-26 10:26 AM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'>Batch Finalized & Archived</span></span>
+                                <span class="qty-text">Qty: 6</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-03-26 10:26 AM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'></span> Reverted from Archive</span>
+                                <span class="qty-text">Qty: 6</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-03-26 10:27 AM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'>Batch Finalized & Archived</span></span>
+                                <span class="qty-text">Qty: 6</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-06-05 12:17 AM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'></span> Reverted from Archive</span>
+                                <span class="qty-text">Qty: 6</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-06-05 03:13 AM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'>Started:</span> پانی تبدیل</span>
+                                <span class="qty-text">Qty: 6</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-06-05 03:13 AM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'>Completed:</span> پانی تبدیل</span>
+                                <span class="qty-text">Qty: 6</span>
+                            </li>
+                    </ul></div>
+                    <div class="batch-item">
+                        <div class="b-head">
+                            <span>Batch: Batch 3 (گاجر)</span>
+                            <span class="status-badge">Active</span>
+                        </div>
+                        <ul class="log-list">
+                
+                            <li class="log-item">
+                                <span class="time-badge">2026-06-05 12:21 AM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'></span> Created from Stock</span>
+                                <span class="qty-text">Qty: 1</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-06-05 12:21 AM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'>Started:</span> hello brother</span>
+                                <span class="qty-text">Qty: 1</span>
+                            </li>
+                    
+                            <li class="log-item">
+                                <span class="time-badge">2026-06-05 12:21 AM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'>Completed:</span> hello brother</span>
+                                <span class="qty-text">Qty: 1</span>
+                            </li>
+                    </ul></div>
+                    <div class="batch-item">
+                        <div class="b-head">
+                            <span>Batch: Batch 4 (گاجر)</span>
+                            <span class="status-badge">Active</span>
+                        </div>
+                        <ul class="log-list">
+                
+                            <li class="log-item">
+                                <span class="time-badge">2026-06-05 01:10 AM</span>
+                                <span class="step-text"><span style='color:#64748b; font-weight:normal;'></span> Created from Stock</span>
+                                <span class="qty-text">Qty: 25</span>
+                            </li>
+                    </ul></div></div></body></html>
